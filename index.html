@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" translate="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="google" content="notranslate" />
+  <title>منصة نون | NOON Multi-Store Platform</title>
+  <meta name="description" content="منصة نون — وجهتكِ الأولى لتسوق أرقى الأزياء والعبايات النسائية من متاجر مستقلة متعددة." />
+  <script>
+    window.onerror = function(msg, url, lineNo, columnNo, error) {
+      console.log('NOON ERROR:', msg, 'at', lineNo, ':', columnNo);
+      return false;
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600&family=Noto+Serif:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Noto+Serif+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,300,0,0" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            background: '#FCFAE8',
+            primary: '#1B2E1D',
+            accent: '#D4AF37',
+            gold: { DEFAULT: '#D4AF37', light: '#E5C76B', dark: '#B8860B' }
+          },
+          fontFamily: {
+            serif: ['"Noto Serif"', '"Noto Serif Arabic"', 'serif'],
+            sans: ['"IBM Plex Sans Arabic"', '"Manrope"', 'sans-serif'],
+          },
+          letterSpacing: { 'luxury': '0.3em', 'elegant': '0.15em' },
+          animation: {
+            'fade-up': 'fadeUp 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+            'slow-zoom': 'slowZoom 20s linear infinite alternate',
+          },
+          keyframes: {
+            fadeUp: {
+              '0%': { opacity: '0', transform: 'translateY(40px)' },
+              '100%': { opacity: '1', transform: 'translateY(0)' }
+            },
+            slowZoom: {
+              '0%': { transform: 'scale(1)' },
+              '100%': { transform: 'scale(1.1)' }
+            }
+          }
+        },
+      },
+    }
+  </script>
+  <style type="text/tailwindcss">
+    @layer base {
+      body { @apply bg-background text-primary font-sans antialiased overflow-x-hidden; }
+      h1, h2, h3, h4, h5, h6 { @apply font-serif; }
+      [dir="rtl"] { font-family: "IBM Plex Sans Arabic", "Manrope", sans-serif; }
+      [dir="rtl"] h1, [dir="rtl"] h2, [dir="rtl"] h3, [dir="rtl"] h4, [dir="rtl"] h5, [dir="rtl"] h6 {
+        font-family: "Noto Serif Arabic", "Noto Serif", serif;
+      }
+    }
+  </style>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body class="bg-background text-primary font-sans antialiased overflow-x-hidden pb-16">
+  
+  <!-- 1. SPLASH SCREEN (بداية ترحيبية موشن راقية وسلسة) -->
+  <div id="splash-screen">
+    <div class="splash-backdrop-glow"></div>
+    <div class="splash-logo-wrap mb-4">
+      <div class="splash-ring-outer"></div>
+      <img src="images/logo.png" alt="NOON Logo" class="splash-logo-img">
+    </div>
+    <h2 class="font-serif text-3xl tracking-[0.45em] text-accent font-light mb-1 splash-title">NOON</h2>
+    <p class="text-[9px] uppercase tracking-[0.35em] text-white/60 mb-6 splash-sub" data-i18n="brand_sub">Platform</p>
+    
+    <!-- Motion Progress Bar -->
+    <div class="w-48 h-[2px] bg-white/10 rounded-full overflow-hidden relative">
+      <div id="splash-progress" class="h-full bg-gradient-to-r from-accent/60 via-accent to-gold-light w-0 rounded-full transition-all duration-300"></div>
+    </div>
+    <span id="splash-percent" class="text-[9px] text-accent/80 font-mono tracking-widest mt-2 font-bold">0%</span>
+  </div>
+
+  <!-- 2. TOP BRAND NAV -->
+  <header class="fixed top-0 left-0 right-0 z-50 glass-header transition-all duration-500" id="top-nav">
+    <div class="px-4 h-16 flex items-center justify-between max-w-[600px] mx-auto">
+      
+      <!-- Left Controls: Store Switcher (⋮) & Daily Game -->
+      <div class="flex items-center gap-1.5">
+        <button id="store-switcher-btn" class="w-9 h-9 rounded-full flex items-center justify-center text-primary hover:text-accent hover:bg-primary/5 transition-all" onclick="toggleStoreSwitcher(true)" title="تبديل المتاجر">
+          <span class="material-symbols-outlined text-2xl">more_vert</span>
+        </button>
+        <button id="nav-game-btn" class="w-9 h-9 rounded-full flex items-center justify-center text-accent hover:scale-110 transition-all relative" onclick="navigate('game')" title="لعبة اليوم">
+          <span class="material-symbols-outlined text-xl">casino</span>
+          <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-accent rounded-full animate-ping"></span>
+        </button>
+      </div>
+
+      <!-- Center Logo (شعار المنصة المتوهج بحلقة الستوري - يفتح القصص عند النقر) -->
+      <div class="absolute left-1/2 -translate-x-1/2 flex items-center justify-center">
+        <div class="relative cursor-pointer group flex flex-col items-center" onclick="openStoriesModal()" title="انقري لمشاهدة ستوريات وقصص المنصة">
+          <div class="stories-ring-glow"></div>
+          <img src="images/logo.png" alt="NOON Platform Logo" class="top-nav-logo relative z-10">
+          <span class="absolute -bottom-2.5 bg-gradient-to-r from-accent to-gold-light text-primary text-[7px] font-bold px-1.5 py-0.2 rounded-full uppercase tracking-wider shadow-md opacity-95 group-hover:scale-110 transition-transform z-20">قصص نون</span>
+        </div>
+      </div>
+
+      <!-- Right Controls: Search & Bag -->
+      <div class="flex items-center gap-1.5">
+        <button id="nav-search-btn" class="w-9 h-9 rounded-full flex items-center justify-center text-primary hover:text-accent hover:bg-primary/5 transition-all" onclick="toggleSearch(true)">
+          <span class="material-symbols-outlined text-xl font-light">search</span>
+        </button>
+        <button class="w-9 h-9 rounded-full flex items-center justify-center text-primary relative hover:text-accent hover:bg-primary/5 transition-all" onclick="navigate('bag')">
+          <span class="material-symbols-outlined text-xl font-light">local_mall</span>
+          <span class="absolute -top-1 -right-1 bg-accent text-white text-[8px] w-4 h-4 rounded-full flex items-center justify-center font-sans font-bold" id="cart-count">0</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- 3. MAIN APPLICATION CONTAINER -->
+  <main class="mt-16 w-full max-w-[600px] mx-auto min-h-screen relative" id="app">
+    
+    <!-- ════════════════════════════════════════════════════════
+         SCREEN 1: PLATFORM HUB (واجهة المنصة الرئيسية واختيار المتاجر)
+         ════════════════════════════════════════════════════════ -->
+    <section id="screen-hub" class="screen active">
+      
+      <!-- Platform Hero -->
+      <div class="relative h-[65svh] w-full overflow-hidden cursor-pointer group" onclick="scrollToStores()">
+        <div class="absolute inset-0 parallax-wrap">
+          <img id="hero-bg-img" src="images/hero_noon.jpg" class="absolute inset-0 w-full h-full object-cover parallax-img animate-slow-zoom" alt="NOON Platform">
+        </div>
+        <div class="absolute inset-0 bg-gradient-to-b from-black/30 via-primary/30 to-background"></div>
+        <div class="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
+          <span class="text-[9px] uppercase tracking-[0.4em] font-bold text-accent mb-4 animate-fade-up bg-primary/60 px-4 py-1.5 rounded-full border border-accent/30" style="animation-delay: 0.2s;" data-i18n="brand_sub">NOON Multi-Store Platform</span>
+          <h2 class="font-serif text-white text-3xl md:text-5xl mb-4 leading-tight animate-fade-up" style="animation-delay: 0.4s;" data-i18n="hero_title">أناقة نسائية لا متناهية</h2>
+          <p class="font-sans text-xs text-white/80 max-w-sm mb-6 animate-fade-up font-light" style="animation-delay: 0.6s;" data-i18n="our_stores_subtitle">تصفحي أرقى دور الأزياء النسائية المستقلة تحت سقف واحد</p>
+          <button class="px-8 py-3 bg-accent text-primary font-sans text-[10px] tracking-luxury font-bold uppercase hover:bg-white transition-all duration-500 shadow-xl rounded-full animate-fade-up" style="animation-delay: 0.8s;" onclick="scrollToStores()">
+            <span data-i18n="explore_now">اكتشفي المتاجر</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Action: Daily Game Banner -->
+      <div class="px-4 -mt-6 relative z-10 mb-8">
+        <div class="p-4 rounded-2xl bg-gradient-to-r from-primary to-[#243e27] border border-accent/40 shadow-xl flex items-center justify-between cursor-pointer group hover:scale-[1.01] transition-all" onclick="navigate('game')">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-xl bg-accent/20 border border-accent/40 flex items-center justify-center text-accent text-2xl group-hover:rotate-12 transition-transform">
+              🎰
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="font-serif text-white text-sm font-semibold" data-i18n="game_title">لعبة اليوم</span>
+                <span class="bg-accent/20 text-accent text-[8px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">سحب فوري</span>
+              </div>
+              <p class="text-white/70 text-[10px] mt-0.5" data-i18n="game_subtitle">اسحبي العتلة الذهبية واربحي قسائم شراء وجوائز يومية!</p>
+            </div>
+          </div>
+          <span class="material-symbols-outlined text-accent text-xl group-hover:translate-x-[-4px] transition-transform">arrow_forward_ios</span>
+        </div>
+      </div>
+
+      <!-- Stores Directory Section (المتاجر الثلاثة المستقلة) -->
+      <div class="py-6 px-4" id="platform-stores-section">
+        <div class="text-center mb-8">
+          <span class="text-[10px] uppercase tracking-[0.4em] font-bold text-accent mb-2 block" data-i18n="our_stores">متاجر المنصة</span>
+          <h3 class="font-serif text-2xl text-primary" data-i18n="our_stores_subtitle">اختر المتجر الذي تود التسوق منه</h3>
+        </div>
+
+        <!-- Stores Dynamic List Container -->
+        <div class="space-y-6" id="stores-hub-container">
+          <!-- Rendered dynamically by main.js -->
+        </div>
+      </div>
+
+      <!-- Platform Features Banner -->
+      <div class="py-12 px-6 bg-primary text-background mt-10 rounded-t-[32px] text-center">
+        <div class="heritage-ornament mb-4">
+          <h4 class="font-serif text-xl italic" data-i18n="platform_title">منصة نون للأزياء النسائية</h4>
+        </div>
+        <p class="font-sans text-xs text-background/70 max-w-sm mx-auto mb-8 font-light leading-relaxed">
+          حسابكِ موحد، وسلة تسوقكِ ذكية، وتجربة تسوق فريدة تجمع خيرة المصممين ودور الأزياء النسائية.
+        </p>
+        <div class="grid grid-cols-3 gap-3 text-center text-accent">
+          <div class="p-3 bg-white/5 rounded-xl border border-white/10">
+            <span class="material-symbols-outlined text-2xl mb-1">storefront</span>
+            <p class="text-[9px] uppercase tracking-wider text-background/90 font-bold">متاجر مستقلة</p>
+          </div>
+          <div class="p-3 bg-white/5 rounded-xl border border-white/10">
+            <span class="material-symbols-outlined text-2xl mb-1">verified_user</span>
+            <p class="text-[9px] uppercase tracking-wider text-background/90 font-bold">حساب موحد</p>
+          </div>
+          <div class="p-3 bg-white/5 rounded-xl border border-white/10">
+            <span class="material-symbols-outlined text-2xl mb-1">casino</span>
+            <p class="text-[9px] uppercase tracking-wider text-background/90 font-bold">جوائز يومية</p>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ════════════════════════════════════════════════════════
+         SCREEN 2: BOUTIQUE STORE (واجهة المتجر المستقل وأقسامه ومنتجاته)
+         ════════════════════════════════════════════════════════ -->
+    <section id="screen-collections" class="screen bg-background">
+      
+      <!-- Store Header Banner & Info -->
+      <div class="relative overflow-hidden border-b border-primary/10 bg-primary/5 pb-4" id="store-profile-header">
+        <div class="h-44 w-full relative overflow-hidden">
+          <img id="current-store-banner" src="images/store_elegance.jpg" class="w-full h-full object-cover">
+          <div class="absolute inset-0 bg-gradient-to-t from-primary/90 via-primary/40 to-transparent"></div>
+          <button class="absolute top-4 left-4 z-10 w-9 h-9 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center text-white" onclick="navigate('hub')" title="العودة للمنصة">
+            <span class="material-symbols-outlined text-sm font-light">arrow_back</span>
+          </button>
+          <div class="absolute bottom-3 left-4 right-4 flex items-center justify-between text-white">
+            <div>
+              <span id="current-store-badge" class="bg-accent text-primary text-[8px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider mb-1 inline-block">أزياء راقية</span>
+              <h2 id="current-store-title" class="font-serif text-2xl font-normal leading-tight text-white drop-shadow">إليجانس نون</h2>
+            </div>
+            <!-- Quick Switch Store Button -->
+            <button class="px-3 py-1.5 bg-white/20 backdrop-blur-md border border-white/30 rounded-lg text-[9px] tracking-wider uppercase font-bold flex items-center gap-1 hover:bg-accent hover:text-primary transition-all" onclick="toggleStoreSwitcher(true)">
+              <span data-i18n="switch_store">تبديل المتجر</span>
+              <span class="material-symbols-outlined text-xs">sync_alt</span>
+            </button>
+          </div>
+        </div>
+        
+        <!-- Store Tagline & Social Links -->
+        <div class="px-4 pt-3 flex items-center justify-between">
+          <p id="current-store-desc" class="text-xs text-primary/70 font-light max-w-[70%] line-clamp-2"></p>
+          <div class="flex items-center gap-2" id="current-store-socials">
+            <a id="store-whatsapp-btn" href="#" target="_blank" class="w-8 h-8 rounded-full bg-emerald-600/10 text-emerald-700 border border-emerald-600/20 flex items-center justify-center text-sm hover:scale-110 transition-transform">
+              <span class="material-symbols-outlined text-base">chat</span>
+            </a>
+            <a id="store-instagram-btn" href="#" target="_blank" class="w-8 h-8 rounded-full bg-pink-600/10 text-pink-700 border border-pink-600/20 flex items-center justify-center text-sm hover:scale-110 transition-transform">
+              <span class="material-symbols-outlined text-base">photo_camera</span>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Boutique Floating Indicator -->
+      <div class="px-4 py-2.5 active-store-indicator flex items-center justify-between text-background">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-accent text-sm">storefront</span>
+          <span class="text-[10px] tracking-wider font-light" data-i18n="active_boutique">أنتِ تتسوقين الآن في:</span>
+          <strong id="active-store-chip" class="text-xs font-serif text-accent">متجر إليجانس</strong>
+        </div>
+        <button class="text-[9px] underline text-accent/80 hover:text-accent" onclick="toggleStoreSwitcher(true)" data-i18n="all_stores">تغيير المتجر</button>
+      </div>
+
+      <!-- Categories Filter Tabs (خاصة بالمتجر الحالي) -->
+      <div class="pt-4 px-4 pb-2">
+        <div class="flex space-x-2 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4 snap-x" id="category-filters">
+          <!-- Populated dynamically based on current store -->
+        </div>
+      </div>
+
+      <!-- Boutique Products Grid -->
+      <div class="grid grid-cols-2 gap-[4px] px-[4px] pb-20" id="atelier-grid">
+        <!-- Products populated for current store only -->
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════════════════════════════
+         SCREEN 3: PRODUCT DETAIL (تفاصيل المنتج مع المقاسات والألوان)
+         ════════════════════════════════════════════════════════ -->
+    <section id="screen-product" class="screen relative bg-background pb-28">
+      <button class="absolute top-4 left-4 z-10 w-10 h-10 bg-background/60 backdrop-blur-md rounded-full flex items-center justify-center text-primary" onclick="navigate('collections')">
+        <span class="material-symbols-outlined text-lg font-light">arrow_back</span>
+      </button>
+      <button id="product-fav-btn" class="fav-btn absolute top-4 right-4 z-10" onclick="toggleFavorite()">
+        <span class="material-symbols-outlined">favorite</span>
+      </button>
+
+      <!-- Store Origin Tag (المتجر التابع له) -->
+      <div class="w-full h-[60svh] bg-primary/5 snap-x snap-mandatory flex overflow-x-auto scrollbar-hide relative" id="product-gallery">
+        <div class="snap-start w-full h-full flex-shrink-0">
+          <img src="" class="w-full h-full object-cover object-top" alt="Main View">
+        </div>
+      </div>
+
+      <!-- Boutique Origin Pill -->
+      <div class="px-6 -mt-4 relative z-10">
+        <span id="product-store-badge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary text-background text-[10px] tracking-wider shadow-md border border-accent/40 font-medium">
+          <span class="material-symbols-outlined text-accent text-xs">storefront</span>
+          <span id="product-store-name">متجر إليجانس نون</span>
+        </span>
+      </div>
+
+      <!-- Color Swatches -->
+      <div class="flex justify-center gap-3 mt-4 px-6" id="color-swatches"></div>
+
+      <div class="px-6 mt-4">
+        <p id="product-category" class="text-[10px] font-semibold tracking-widest text-primary/60 uppercase mb-1"></p>
+        <h2 class="font-serif text-2xl mb-2" id="product-name"></h2>
+        <p class="font-sans text-lg font-bold text-accent mb-4" id="product-price"></p>
+        <p id="product-desc" class="font-sans text-sm font-light leading-relaxed mb-6 text-primary/80"></p>
+
+        <!-- Size Selector -->
+        <div class="mb-5">
+          <div class="flex justify-between items-end mb-3">
+            <span class="text-[10px] uppercase tracking-widest font-semibold" data-i18n="select_size">اختر المقاس</span>
+            <span class="text-[10px] uppercase tracking-wider underline decoration-primary/30 cursor-pointer" data-i18n="size_guide">دليل المقاسات</span>
+          </div>
+          <div class="grid grid-cols-5 gap-2" id="size-selector"></div>
+        </div>
+
+        <!-- Quantity -->
+        <div class="mb-6">
+          <span class="text-[10px] uppercase tracking-widest font-semibold mb-3 block" data-i18n="quantity">الكمية</span>
+          <div class="flex items-center gap-5">
+            <button class="w-9 h-9 rounded-full border border-primary/20 flex items-center justify-center hover:bg-primary hover:text-white transition-colors text-sm" onclick="updateQuantity(-1)">−</button>
+            <span id="product-quantity" class="font-sans text-lg font-medium">1</span>
+            <button class="w-9 h-9 rounded-full border border-primary/20 flex items-center justify-center hover:bg-primary hover:text-white transition-colors text-sm" onclick="updateQuantity(1)">+</button>
+          </div>
+        </div>
+
+        <!-- Heritage & Craftsmanship -->
+        <div class="mb-6 p-5 bg-primary/5 border-l-2 border-accent rounded-r-lg">
+           <h4 class="font-serif text-xs uppercase tracking-widest text-accent mb-2" data-i18n="heritage">تفاصيل القطعة</h4>
+           <p id="product-heritage" class="font-sans text-xs italic leading-relaxed text-primary/70"></p>
+        </div>
+
+        <!-- Accordions -->
+        <div class="border-t border-primary/10" id="product-accordions"></div>
+      </div>
+
+      <!-- Sticky Add-to-Cart CTA -->
+      <div class="fixed bottom-0 left-0 right-0 p-3 bg-background border-t border-primary/10 z-30 pb-safe">
+        <div class="max-w-[600px] mx-auto flex gap-3">
+          <button class="flex-1 gold-btn-premium py-3.5 rounded-xl uppercase tracking-widest text-[10px] font-bold flex items-center justify-center group shadow-xl" onclick="addToBag()">
+            <span data-i18n="add_to_bag">إضافة إلى السلة</span>
+            <span class="material-symbols-outlined mr-2 text-sm">local_mall</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════════════════════════════
+         SCREEN 4: SHOPPING BAG (سلة التسوق المتعددة المتاجر)
+         ════════════════════════════════════════════════════════ -->
+    <section id="screen-bag" class="screen bg-background">
+      <div class="px-6 py-4 flex items-center justify-between border-b border-primary/5 sticky top-0 bg-background/80 backdrop-blur-md z-10">
+        <button class="material-symbols-outlined text-xl font-light" onclick="navigate('collections')">arrow_back</button>
+        <h2 class="font-serif text-lg" data-i18n="refined_list">سلة التسوق</h2>
+        <div class="w-10"></div>
+      </div>
+      <div class="pt-6 px-6 pb-28">
+        <p class="font-sans text-[10px] uppercase tracking-widest text-primary/60 mb-6" id="bag-subtitle"></p>
+        
+        <!-- Cart Items List grouped by Store -->
+        <div class="space-y-4" id="cart-container"></div>
+        
+        <!-- Summary Box -->
+        <div class="mt-6 bg-primary/5 p-5 rounded-2xl border border-primary/10">
+          <h3 class="font-serif text-base border-b border-primary/10 pb-3 mb-3" data-i18n="summary">ملخص الطلب</h3>
+          <div class="flex justify-between text-sm mb-2 text-primary/80">
+            <span data-i18n="subtotal">الإجمالي الفرعي</span>
+            <span id="bag-subtotal-summary">0</span>
+          </div>
+          <div class="flex justify-between text-sm mb-4 text-primary/80" id="shipping-row">
+            <span data-i18n="shipping">الشحن</span>
+            <span id="shipping-cost-summary">يحدد لاحقاً</span>
+          </div>
+          <div class="flex justify-between text-base font-serif pt-3 border-t border-primary/10 font-bold">
+            <span data-i18n="total">الإجمالي</span>
+            <span id="bag-total-summary">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Checkout Sticky Button (WhatsApp Order) -->
+      <div class="fixed bottom-0 left-0 right-0 p-3 bg-background/90 backdrop-blur-md border-t border-primary/10 z-30 pb-safe">
+        <div class="max-w-[600px] mx-auto">
+          <button class="w-full bg-emerald-700 text-white py-3.5 uppercase tracking-widest text-[10px] font-bold shadow-xl group hover:bg-emerald-800 transition-all text-center flex justify-center items-center rounded-xl" onclick="orderWhatsApp()">
+            <span data-i18n="order_whatsapp">إرسال الطلب عبر واتساب</span>
+            <span class="material-symbols-outlined text-base mr-2">send</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════════════════════════════
+         SCREEN 5: DAILY GAME (لعبة اليوم - آلة الحظ ذات العتلة)
+         ════════════════════════════════════════════════════════ -->
+    <section id="screen-game" class="screen bg-background pb-24">
+      <div class="px-6 py-4 flex items-center justify-between border-b border-primary/5 sticky top-0 bg-background/80 backdrop-blur-md z-10">
+        <button class="material-symbols-outlined text-xl font-light" onclick="navigate('hub')">arrow_back</button>
+        <h2 class="font-serif text-lg" data-i18n="game_title">لعبة اليوم</h2>
+        <div class="w-10"></div>
+      </div>
+
+      <div class="pt-6 px-4">
+        <!-- Game Intro Header -->
+        <div class="text-center mb-6">
+          <span class="text-[9px] uppercase tracking-[0.3em] font-bold text-accent mb-1 block">DAILY FORTUNE</span>
+          <h3 class="font-serif text-2xl text-primary mb-2" data-i18n="game_title">آلة الحظ والجوائز اليومية</h3>
+          <p class="font-sans text-xs text-primary/70 max-w-sm mx-auto font-light" data-i18n="game_subtitle">اسحبي العتلة الذهبية واربحي قسائم شراء وجوائز فورية لطلبك!</p>
+        </div>
+
+        <!-- Attempts Badge -->
+        <div class="flex justify-center mb-6">
+          <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-xs">
+            <span class="material-symbols-outlined text-accent text-sm">alarm</span>
+            <span data-i18n="attempts_left">المحاولات المتبقية اليوم:</span>
+            <strong id="game-attempts-badge" class="text-accent font-bold">1</strong>
+          </div>
+        </div>
+
+        <!-- Slot Machine Cabinet Frame -->
+        <div class="slot-machine-cabinet p-6 mb-8 max-w-[420px] mx-auto">
+          <!-- Top Neon Arc -->
+          <div class="text-center mb-4">
+            <span class="text-[10px] tracking-[0.4em] uppercase font-bold text-gold-light animate-pulse">✨ NOON LUCKY REELS ✨</span>
+          </div>
+
+          <div class="flex items-center justify-center gap-4">
+            <!-- Slot Window (3 Reels) -->
+            <div class="slot-window p-3 flex gap-2.5">
+              <div class="slot-reel" id="reel-1"><span>💎</span></div>
+              <div class="slot-reel" id="reel-2"><span>👑</span></div>
+              <div class="slot-reel" id="reel-3"><span>✨</span></div>
+            </div>
+
+            <!-- Interactive Mechanical Lever (العتلة الميكانيكية التفاعلية) -->
+            <div class="slot-lever-container" id="slot-lever" onclick="pullSlotLever()" title="اسحب العتلة">
+              <div class="slot-lever-ball"></div>
+              <div class="slot-lever-stick"></div>
+              <div class="slot-lever-base"></div>
+            </div>
+          </div>
+
+          <!-- Lever Action Button -->
+          <div class="mt-6 text-center">
+            <button id="spin-btn" class="gold-btn-premium w-full py-4 rounded-xl font-sans text-xs font-bold tracking-luxury uppercase shadow-2xl flex items-center justify-center gap-2" onclick="pullSlotLever()">
+              <span class="material-symbols-outlined text-base">touch_app</span>
+              <span id="spin-btn-text" data-i18n="pull_lever">اسحب العتلة</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Won Prizes History in Profile / Recent Result -->
+        <div id="game-result-card" class="hidden p-5 rounded-2xl bg-white border border-accent/40 shadow-xl text-center max-w-[420px] mx-auto mb-6">
+          <span class="material-symbols-outlined text-4xl text-accent mb-2">celebration</span>
+          <h4 class="font-serif text-lg font-bold text-primary mb-1" id="prize-won-title">تهانينا!</h4>
+          <p class="text-xs text-primary/70 mb-3" id="prize-won-desc"></p>
+          <div class="p-3 bg-primary/5 rounded-xl border border-dashed border-accent flex items-center justify-between">
+            <code class="text-sm font-bold text-accent tracking-widest" id="prize-code-text">NOON50K</code>
+            <button class="px-3 py-1 bg-accent text-primary rounded-lg text-xs font-bold hover:bg-primary hover:text-white transition-all" onclick="copyPrizeCode()">نسخ</button>
+          </div>
+        </div>
+
+        <!-- Rules Notice -->
+        <div class="text-center text-[10px] text-primary/50 max-w-xs mx-auto">
+          <p>تتاح محاولة واحدة يومياً لكل حساب مسجل. يتم تطبيق الخصم فورياً عند إتمام الطلب.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════════════════════════════
+         SCREEN 6: USER PROFILE (حساب المستخدم الموحد)
+         ════════════════════════════════════════════════════════ -->
+    <section id="screen-profile" class="screen bg-background pb-24">
+      <div class="px-6 py-4 flex items-center justify-between border-b border-primary/5 sticky top-0 bg-background/80 backdrop-blur-md z-10">
+        <button class="material-symbols-outlined text-xl font-light" onclick="navigate('hub')">arrow_back</button>
+        <h2 class="font-serif text-lg" data-i18n="user_profile">الملف الشخصي</h2>
+        <div class="w-10"></div>
+      </div>
+
+      <div class="pt-6 px-6">
+        <!-- Profile Header -->
+        <div class="bg-primary text-background p-6 rounded-2xl text-center mb-6 relative overflow-hidden">
+          <div class="w-20 h-20 rounded-full mx-auto mb-3 border-2 border-accent overflow-hidden relative bg-black/40 shadow-xl">
+            <img id="profile-avatar-img" src="images/logo.png" class="w-full h-full object-cover">
+          </div>
+          <h3 class="font-serif text-xl text-white mb-0.5" id="profile-user-name">زائر كريم</h3>
+          <p class="text-[10px] uppercase tracking-widest text-accent" id="profile-status-text">حساب موحد لمنصة نون</p>
+        </div>
+
+        <!-- Profile Settings Card -->
+        <div class="bg-white p-5 rounded-2xl shadow-sm mb-6 border border-primary/5 space-y-4">
+          <h4 class="font-serif text-sm font-semibold border-b border-primary/5 pb-2">بيانات الحساب</h4>
+          
+          <div>
+            <label class="text-[10px] uppercase tracking-wider text-primary/60 block mb-1" data-i18n="display_name">اسم العرض</label>
+            <input type="text" id="input-display-name" class="w-full border border-primary/15 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent" placeholder="اسمك الكريم">
+          </div>
+
+          <!-- Avatar Privacy Options -->
+          <div class="pt-2">
+            <label class="text-[10px] uppercase tracking-wider text-primary/60 block mb-2" data-i18n="avatar_privacy">خيارات الصورة الرمزية</label>
+            <div class="space-y-2">
+              <label class="flex items-center gap-2 text-xs text-primary/80 cursor-pointer">
+                <input type="radio" name="avatar_mode" value="default" checked class="text-accent focus:ring-accent">
+                <span data-i18n="use_default_avatar">استخدام الأفاتار الملكي الافتراضي</span>
+              </label>
+              <label class="flex items-center gap-2 text-xs text-primary/80 cursor-pointer">
+                <input type="radio" name="avatar_mode" value="public" class="text-accent focus:ring-accent">
+                <span data-i18n="show_avatar_public">إظهار صورتي الشخصية للآخرين</span>
+              </label>
+            </div>
+          </div>
+
+          <button class="w-full py-3 bg-primary text-background rounded-xl text-xs font-bold hover:bg-accent hover:text-primary transition-all mt-3" onclick="saveProfileSettings()" data-i18n="save_profile">
+            حفظ البيانات
+          </button>
+        </div>
+
+        <!-- Quick Stats: Favorites & Won Vouchers -->
+        <div class="grid grid-cols-2 gap-3 mb-6">
+          <div class="p-4 bg-white rounded-xl border border-primary/5 text-center cursor-pointer hover:border-accent transition-colors" onclick="navigate('favorites')">
+            <span class="material-symbols-outlined text-accent text-2xl mb-1">favorite</span>
+            <p class="text-xs font-bold" id="profile-fav-count">0</p>
+            <p class="text-[9px] uppercase tracking-wider text-primary/60" data-i18n="my_favorites">المفضلة</p>
+          </div>
+          <div class="p-4 bg-white rounded-xl border border-primary/5 text-center cursor-pointer hover:border-accent transition-colors" onclick="navigate('game')">
+            <span class="material-symbols-outlined text-accent text-2xl mb-1">redeem</span>
+            <p class="text-xs font-bold" id="profile-prizes-count">1</p>
+            <p class="text-[9px] uppercase tracking-wider text-primary/60">جوائز لعبة اليوم</p>
+          </div>
+        </div>
+
+        <!-- Auth Actions (Login / Sign Out) -->
+        <div class="space-y-2" id="profile-auth-buttons">
+          <!-- Injected dynamically -->
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════════════════════════════
+         SCREEN 7: FAVORITES (المفضلة)
+         ════════════════════════════════════════════════════════ -->
+    <section id="screen-favorites" class="screen bg-background">
+      <div class="px-6 py-4 flex items-center justify-between border-b border-primary/5 sticky top-0 bg-background/80 backdrop-blur-md z-10">
+        <button class="material-symbols-outlined text-xl font-light" onclick="navigate('hub')">arrow_back</button>
+        <h2 class="font-serif text-lg" data-i18n="fav_title">المفضلة</h2>
+        <div class="w-10"></div>
+      </div>
+      <div class="pt-6 px-6 pb-24">
+        <div id="favorites-container"></div>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════════════════════════════
+         SCREEN 8: REVIEWS & COMMENTS (التعليقات والتقييمات)
+         ════════════════════════════════════════════════════════ -->
+    <section id="screen-comments" class="screen bg-background">
+      <div class="px-6 py-4 flex items-center justify-between border-b border-primary/5 sticky top-0 bg-background/80 backdrop-blur-md z-10">
+        <button class="material-symbols-outlined text-xl font-light" onclick="navigate('collections')">arrow_back</button>
+        <h2 class="font-serif text-lg" data-i18n="comments_title">التقييمات</h2>
+        <div class="w-10"></div>
+      </div>
+      <div class="pt-6 px-6 pb-24">
+        <div class="bg-primary text-background p-8 rounded-xl mb-6 text-center">
+          <span class="material-symbols-outlined text-3xl mb-3 text-accent/90 font-light">reviews</span>
+          <h2 class="font-serif text-2xl mb-2" data-i18n="comments_title">تقييمات العميلات</h2>
+          <p class="font-sans text-xs font-light text-background/70 max-w-sm mx-auto" data-i18n="comments_subtitle">آراء موثوقة من عميلاتنا العزيزات.</p>
+        </div>
+        
+        <!-- Post Comment Form -->
+        <div class="bg-white p-5 rounded-2xl shadow-sm mb-6 border border-primary/5" id="detail-comment-section">
+          <textarea id="comment-text" class="w-full bg-transparent border-b border-primary/10 py-2.5 text-sm outline-none focus:border-accent transition-colors resize-none h-20" placeholder="شاركينا رأيكِ في هذه القطعة..." data-i18n="comment_text"></textarea>
+          <button id="detail-post-btn" class="w-full mt-3 bg-primary text-background py-3 uppercase tracking-widest text-[10px] font-bold rounded-xl hover:bg-accent hover:text-primary transition-all" onclick="postComment()" data-i18n="post_comment">إرسال التقييم</button>
+        </div>
+
+        <!-- Comments List -->
+        <div id="comments-list"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 4. BOTTOM NAV (التنقل السلس بين شاشات المنصة) -->
+  <nav class="fixed bottom-0 left-0 right-0 h-16 bg-background/95 backdrop-blur-lg border-t border-primary/10 z-40 flex items-center justify-around px-2 pb-safe" id="bottom-nav">
+    <button class="flex flex-col items-center justify-center w-14 text-primary group nav-btn" data-screen="hub" onclick="navigate('hub')">
+      <span class="material-symbols-outlined text-[22px] font-light group-hover:-translate-y-1 transition-transform mb-0.5">storefront</span>
+      <span class="text-[8px] uppercase tracking-wider font-semibold opacity-80" data-i18n="stores">المتاجر</span>
+    </button>
+    <button class="flex flex-col items-center justify-center w-14 text-primary/60 group nav-btn" data-screen="collections" onclick="navigate('collections')">
+      <span class="material-symbols-outlined text-[22px] font-light group-hover:-translate-y-1 transition-transform mb-0.5">grid_view</span>
+      <span class="text-[8px] uppercase tracking-wider font-semibold opacity-80" data-i18n="shop">المتجر</span>
+    </button>
+    <button class="flex flex-col items-center justify-center w-14 text-accent group nav-btn relative" data-screen="game" onclick="navigate('game')">
+      <span class="material-symbols-outlined text-[24px] font-light group-hover:scale-125 transition-transform mb-0.5">casino</span>
+      <span class="text-[8px] uppercase tracking-wider font-bold" data-i18n="game_nav">اللعبة</span>
+    </button>
+    <button class="flex flex-col items-center justify-center w-14 text-primary/60 group nav-btn" data-screen="profile" onclick="navigate('profile')">
+      <span class="material-symbols-outlined text-[22px] font-light group-hover:-translate-y-1 transition-transform mb-0.5">person</span>
+      <span class="text-[8px] uppercase tracking-wider font-semibold opacity-80" data-i18n="profile">حسابي</span>
+    </button>
+    <button class="flex flex-col items-center justify-center w-14 text-primary/60 group" onclick="toggleMoreMenu(true)">
+      <span class="material-symbols-outlined text-[22px] font-light group-hover:-translate-y-1 transition-transform mb-0.5">menu</span>
+      <span class="text-[8px] uppercase tracking-wider font-semibold opacity-80" data-i18n="more">المزيد</span>
+    </button>
+  </nav>
+
+  <!-- 5. STORE SWITCHER MODAL (قائمة ⋮ للتبديل السريع بين المتاجر) -->
+  <div id="store-switcher-modal" class="fixed inset-0 z-[120] invisible pointer-events-none flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="toggleStoreSwitcher(false)"></div>
+    <div class="switcher-sheet bg-background w-full max-w-sm rounded-[24px] p-6 shadow-2xl relative z-10 border border-accent/30 max-h-[85vh] flex flex-col">
+      <div class="flex items-center justify-between border-b border-primary/10 pb-3 mb-4">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-accent text-xl">store</span>
+          <h3 class="font-serif text-lg text-primary font-bold" data-i18n="switch_store">تبديل المتجر</h3>
+        </div>
+        <button class="material-symbols-outlined text-primary/60 hover:text-primary" onclick="toggleStoreSwitcher(false)">close</button>
+      </div>
+
+      <p class="text-xs text-primary/60 font-light mb-4" data-i18n="our_stores_subtitle">اختر المتجر الذي تود التصفح والشراء منه مباشرة:</p>
+
+      <!-- Stores Switcher List -->
+      <div class="space-y-3 overflow-y-auto flex-1 pr-1" id="switcher-stores-list">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <div class="pt-4 mt-3 border-t border-primary/10 flex justify-between items-center">
+        <button class="text-xs text-accent font-semibold flex items-center gap-1 hover:underline" onclick="toggleStoreSwitcher(false); navigate('hub')">
+          <span class="material-symbols-outlined text-sm">home</span>
+          <span data-i18n="platform_home">رئيسية المنصة</span>
+        </button>
+        <a href="mb-dashboard/index.html" class="text-[10px] uppercase tracking-widest text-primary/50 hover:text-accent font-bold">لوحة الإدارة ↗</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. MORE MENU OVERLAY -->
+  <div id="more-overlay" class="fixed inset-0 z-[100] invisible pointer-events-none">
+    <div class="absolute inset-0 bg-black/40" onclick="toggleMoreMenu(false)"></div>
+    <div class="menu-sheet absolute inset-x-0 bottom-0 bg-background rounded-t-[28px] p-8 pb-12 shadow-2xl">
+      <div class="w-10 h-1 bg-primary/10 rounded-full mx-auto mb-8 cursor-pointer" onclick="toggleMoreMenu(false)"></div>
+      <div class="space-y-2">
+        <button class="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-primary/5 transition-colors text-right" onclick="toggleMoreMenu(false); navigate('hub')">
+          <span class="material-symbols-outlined text-accent">storefront</span>
+          <span class="text-sm font-medium" data-i18n="platform_home">رئيسية المنصة ومتاجرها</span>
+        </button>
+        <button class="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-primary/5 transition-colors text-right" onclick="toggleMoreMenu(false); navigate('game')">
+          <span class="material-symbols-outlined text-accent">casino</span>
+          <span class="text-sm font-medium" data-i18n="game_title">لعبة اليوم (آلة الحظ)</span>
+        </button>
+        <button class="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-primary/5 transition-colors text-right" onclick="toggleMoreMenu(false); navigate('favorites')">
+          <span class="material-symbols-outlined text-accent">favorite</span>
+          <span class="text-sm font-medium" data-i18n="favorites">المفضلة</span>
+        </button>
+        <button class="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-primary/5 transition-colors text-right" onclick="toggleMoreMenu(false); navigate('profile')">
+          <span class="material-symbols-outlined text-accent">person</span>
+          <span class="text-sm font-medium" data-i18n="user_profile">الملف الشخصي والحساب</span>
+        </button>
+        <button class="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-primary/5 transition-colors text-right" onclick="toggleLanguage()">
+          <span class="material-symbols-outlined text-accent">translate</span>
+          <span class="text-sm font-medium lang-toggle-text">English</span>
+        </button>
+        <a href="mb-dashboard/index.html" class="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-primary/5 transition-colors text-right block">
+          <span class="material-symbols-outlined text-accent">admin_panel_settings</span>
+          <span class="text-sm font-medium">لوحة إدارة المنصة والمتاجر</span>
+        </a>
+      </div>
+      <div class="mt-8 text-center">
+        <p class="text-[10px] uppercase tracking-widest font-semibold opacity-30">NOON Platform | متجر نون متعدد المتاجر</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. SEARCH OVERLAY -->
+  <div id="search-overlay" class="fixed inset-0 z-[100] invisible pointer-events-none transition-all duration-500">
+    <div class="absolute inset-0 bg-background/95 backdrop-blur-xl flex flex-col p-6">
+      <div class="flex justify-end mb-12">
+        <button class="material-symbols-outlined text-primary font-light text-2xl hover:rotate-90 transition-transform duration-300" onclick="toggleSearch(false)">close</button>
+      </div>
+      <div class="max-w-lg mx-auto w-full">
+        <p class="text-[10px] uppercase tracking-[0.3em] font-bold text-accent mb-3" data-i18n="search">بحث</p>
+        <input type="text" id="store-search-input" oninput="handleSearch(this.value)" placeholder="عما تبحثين اليوم في متاجر نون؟" class="w-full bg-transparent border-b-2 border-primary/20 py-3 text-xl font-serif outline-none focus:border-primary transition-colors placeholder:text-primary/20" data-i18n="seeking">
+        
+        <div id="search-results" class="mt-6 space-y-3 max-h-[50vh] overflow-y-auto"></div>
+
+        <div class="mt-8">
+          <p class="text-[10px] uppercase tracking-widest font-semibold opacity-50 mb-3" data-i18n="trends">الأكثر بحثاً</p>
+          <div class="flex flex-wrap gap-2">
+            <span class="px-3.5 py-1.5 bg-primary/5 text-xs rounded-full cursor-pointer hover:bg-primary hover:text-background transition-colors" onclick="searchTag('فساتين سهرة')">فساتين سهرة</span>
+            <span class="px-3.5 py-1.5 bg-primary/5 text-xs rounded-full cursor-pointer hover:bg-primary hover:text-background transition-colors" onclick="searchTag('عبايات ملكية')">عبايات ملكية</span>
+            <span class="px-3.5 py-1.5 bg-primary/5 text-xs rounded-full cursor-pointer hover:bg-primary hover:text-background transition-colors" onclick="searchTag('أطقم لِنين')">أطقم لِنين</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. SUCCESS SCREEN -->
+  <div id="success-screen" class="fixed inset-0 z-[200] hidden bg-background flex flex-col items-center justify-center p-8 text-center">
+    <div class="w-20 h-20 mb-6 relative">
+       <div class="absolute inset-0 border-2 border-accent rounded-full animate-ping opacity-20"></div>
+       <div class="absolute inset-0 bg-accent rounded-full flex items-center justify-center">
+          <span class="material-symbols-outlined text-white text-3xl">verified</span>
+       </div>
+    </div>
+    <h2 class="font-serif text-3xl mb-4" data-i18n="order_success_title">تم استلام طلبكِ بنجاح</h2>
+    <p class="font-sans text-sm font-light text-primary/70 leading-relaxed max-w-xs mb-10" data-i18n="order_success_desc">
+      تم إرسال تفاصيل طلبكِ مباشرة لمتجركِ المختار. سيتواصل معكِ المتجر لتأكيد موعد التوصيل.
+    </p>
+    <button class="px-10 py-3.5 bg-primary text-background uppercase tracking-widest text-[10px] font-semibold hover:bg-accent transition-colors rounded-xl" onclick="closeSuccess()" data-i18n="return_atelier">متابعة التسوق</button>
+  <!-- 9. NOON LUXURY STORIES VIEWER (ستوريات وقصص المنصة) -->
+  <div id="stories-modal" class="fixed inset-0 z-[300] hidden bg-black/95 backdrop-blur-2xl flex items-center justify-center select-none overflow-hidden">
+    <div class="relative w-full max-w-[440px] h-full sm:h-[92vh] sm:rounded-3xl overflow-hidden bg-black flex flex-col justify-between shadow-2xl">
+      
+      <!-- Top Segmented Progress Bars -->
+      <div class="absolute top-3 left-3 right-3 z-30 flex gap-1.5" id="stories-progress-bars">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <!-- Story Header Bar -->
+      <div class="absolute top-7 left-3 right-3 z-30 flex items-center justify-between text-white drop-shadow-md">
+        <div class="flex items-center gap-2.5">
+          <img src="images/logo.png" class="w-9 h-9 rounded-full border border-accent/80 p-0.5 object-cover" id="story-boutique-avatar" onerror="this.src='images/logo.png'">
+          <div>
+            <div class="flex items-center gap-1.5">
+              <h4 class="text-xs font-serif font-bold text-white tracking-wide" id="story-boutique-name">منصة نون</h4>
+              <span class="material-symbols-outlined text-accent text-[14px]">verified</span>
+            </div>
+            <span class="text-[9px] text-white/70 font-sans" id="story-time">منذ ساعتين</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="story-pause-btn" onclick="toggleStoryPause()" class="w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white/80 hover:text-white transition-all">
+            <span class="material-symbols-outlined text-base" id="story-pause-icon">pause</span>
+          </button>
+          <button onclick="closeStoriesModal()" class="w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white/80 hover:text-white transition-all">
+            <span class="material-symbols-outlined text-lg">close</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Story Media Container -->
+      <div class="absolute inset-0 z-10 flex items-center justify-center bg-black overflow-hidden" id="story-media-container">
+        <img id="story-img" src="images/store_elegance.jpg" class="w-full h-full object-cover transition-transform duration-[6000ms] ease-out scale-100" onerror="this.src='images/hero_noon.jpg'">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/95 via-transparent to-black/60 pointer-events-none"></div>
+      </div>
+
+      <!-- Left / Right Tap zones for Navigation -->
+      <div class="absolute inset-y-16 left-0 w-1/3 z-20 cursor-pointer" onclick="prevStory()" title="القصة السابقة"></div>
+      <div class="absolute inset-y-16 right-0 w-1/3 z-20 cursor-pointer" onclick="nextStory()" title="القصة التالية"></div>
+
+      <!-- Story Footer Content & CTA -->
+      <div class="absolute bottom-6 left-4 right-4 z-30 text-white space-y-3">
+        <div>
+          <span class="bg-accent/90 text-primary text-[9px] font-bold px-2.5 py-0.5 rounded-full inline-block mb-1.5" id="story-tag">
+            تشكيلة حصرية
+          </span>
+          <h3 class="font-serif text-lg font-bold leading-tight text-white" id="story-title">تشكيلة السهرة الملكية</h3>
+          <p class="text-xs text-white/80 font-light leading-relaxed mt-1" id="story-caption">فساتين سهرة راقية بتطريزات يدوية مذهبة وأقمشة مخملية فاخرة.</p>
+        </div>
+
+        <!-- Interactive CTA Button -->
+        <button id="story-cta-btn" onclick="executeStoryAction()" class="w-full py-3 bg-gradient-to-r from-accent via-gold-light to-accent text-primary font-bold text-xs uppercase tracking-widest rounded-xl shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+          <span id="story-cta-text">استعراض التشكيلة</span>
+          <span class="material-symbols-outlined text-sm">arrow_forward</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script type="module" src="./main.js?v=9.0"></script>
+</body>
+</html>
