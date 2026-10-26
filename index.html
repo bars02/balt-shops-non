@@ -11,6 +11,20 @@
       console.log('NOON ERROR:', msg, 'at', lineNo, ':', columnNo);
       return false;
     };
+    // Purge Netlify drawer / collaborative preview elements
+    (function() {
+      function purgeNetlify() {
+        document.querySelectorAll('#netlify-drawer, netlify-drawer, [data-netlify-deploy-id], iframe[src*="netlify"], iframe[title*="Netlify"], [class*="netlify-feedback"], [class*="netlify-drawer"]').forEach(function(el) {
+          try { el.remove(); } catch(e) { el.style.display = 'none'; }
+        });
+      }
+      try {
+        var obs = new MutationObserver(purgeNetlify);
+        obs.observe(document.documentElement, { childList: true, subtree: true });
+        window.addEventListener('DOMContentLoaded', purgeNetlify);
+        window.addEventListener('load', purgeNetlify);
+      } catch(e) {}
+    })();
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -129,11 +143,11 @@
         </div>
         <div class="absolute inset-0 bg-gradient-to-b from-black/30 via-primary/30 to-background"></div>
         <div class="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
-          <span class="text-[9px] uppercase tracking-[0.4em] font-bold text-accent mb-4 animate-fade-up bg-primary/60 px-4 py-1.5 rounded-full border border-accent/30" style="animation-delay: 0.2s;" data-i18n="brand_sub">NOON Multi-Store Platform</span>
-          <h2 class="font-serif text-white text-3xl md:text-5xl mb-4 leading-tight animate-fade-up" style="animation-delay: 0.4s;" data-i18n="hero_title">أناقة نسائية لا متناهية</h2>
-          <p class="font-sans text-xs text-white/80 max-w-sm mb-6 animate-fade-up font-light" style="animation-delay: 0.6s;" data-i18n="our_stores_subtitle">تصفحي أرقى دور الأزياء النسائية المستقلة تحت سقف واحد</p>
-          <button class="px-8 py-3 bg-accent text-primary font-sans text-[10px] tracking-luxury font-bold uppercase hover:bg-white transition-all duration-500 shadow-xl rounded-full animate-fade-up" style="animation-delay: 0.8s;" onclick="scrollToStores()">
-            <span data-i18n="explore_now">اكتشفي المتاجر</span>
+          <span id="hero-badge" class="text-[9px] uppercase tracking-[0.4em] font-bold text-accent mb-4 animate-fade-up bg-primary/60 px-4 py-1.5 rounded-full border border-accent/30" style="animation-delay: 0.2s;" data-i18n="brand_sub">NOON Multi-Store Platform</span>
+          <h2 id="hero-title" class="font-serif text-white text-3xl md:text-5xl mb-4 leading-tight animate-fade-up" style="animation-delay: 0.4s;" data-i18n="hero_title">أناقة نسائية لا متناهية</h2>
+          <p id="hero-desc" class="font-sans text-xs text-white/80 max-w-sm mb-6 animate-fade-up font-light" style="animation-delay: 0.6s;" data-i18n="our_stores_subtitle">تصفحي أرقى دور الأزياء النسائية المستقلة تحت سقف واحد</p>
+          <button id="hero-btn" class="px-8 py-3 bg-accent text-primary font-sans text-[10px] tracking-luxury font-bold uppercase hover:bg-white transition-all duration-500 shadow-xl rounded-full animate-fade-up" style="animation-delay: 0.8s;" onclick="scrollToStores()">
+            <span id="hero-btn-text" data-i18n="explore_now">اكتشفي المتاجر</span>
           </button>
         </div>
       </div>

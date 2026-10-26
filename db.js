@@ -340,6 +340,20 @@ export const db = {
     return cleanReview;
   },
 
+  async deleteReview(id) {
+    if (this.isCloudReady()) {
+      try {
+        await supabaseClient.from('reviews').delete().eq('id', id);
+      } catch (err) {
+        console.warn('[NOON DB] deleteReview cloud error:', err);
+      }
+    }
+    let reviews = JSON.parse(localStorage.getItem('noon_reviews') || '[]');
+    reviews = reviews.filter(r => r.id !== id);
+    localStorage.setItem('noon_reviews', JSON.stringify(reviews));
+    return reviews;
+  },
+
   // --- ORDERS ---
   async createOrder(order) {
     const cleanOrder = {
@@ -417,6 +431,38 @@ export const db = {
       try { return JSON.parse(local); } catch (e) {}
     }
     return initialGameConfig;
+  },
+
+  async saveGameConfig(config) {
+    localStorage.setItem('noon_game_config', JSON.stringify(config));
+    if (this.isCloudReady()) {
+      try {
+        await supabaseClient.from('game_settings').upsert({
+          id: 1,
+          daily_attempts_allowed: config.dailyAttemptsAllowed || 1,
+          is_enabled: config.enabled !== false,
+          updated_at: new Date().toISOString()
+        });
+        if (config.prizes && config.prizes.length > 0) {
+          for (const p of config.prizes) {
+            await supabaseClient.from('game_prizes').upsert({
+              id: String(p.id || p.code || 'prize_' + Math.random()),
+              name_ar: p.nameAr,
+              name_en: p.nameEn,
+              code: p.code || null,
+              icon: p.icon || '🎁',
+              color: p.color || '#D4AF37',
+              weight: p.weight || 10,
+              symbol: p.symbol || p.icon || '💎',
+              is_active: true
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('[NOON DB] saveGameConfig cloud note:', err);
+      }
+    }
+    return config;
   },
 
   async recordDailySpin(userId, prize) {
@@ -523,19 +569,29 @@ export const db = {
     return local;
   },
 
-  // --- PLATFORM SETTINGS (الشعار والتوصيل والتواصل) ---
+  // --- PLATFORM SETTINGS (الشعار والتوصيل والتواصل وواجهة الهيرو) ---
   async getPlatformSettings() {
     if (this.isCloudReady()) {
       try {
         const { data, error } = await supabaseClient.from('platform_settings').select('*').eq('id', 1).single();
         if (!error && data) {
           const s = {
-            logo: data.logo_url || 'images/logo.png',
-            whatsapp: data.whatsapp || '9647835544744',
-            instagram: data.instagram || '@noon.boutique',
+            logo: data.logo_url || initialPlatformSettings.logo,
+            whatsapp: data.whatsapp || initialPlatformSettings.whatsapp,
+            instagram: data.instagram || initialPlatformSettings.instagram,
             deliveryFee: Number(data.delivery_fee) || 5000,
             currencyAr: data.currency_ar || 'د.ع',
-            currencyEn: data.currency_en || 'IQD'
+            currencyEn: data.currency_en || 'IQD',
+            heroBg: data.hero_bg || initialPlatformSettings.heroBg,
+            heroBadgeAr: data.hero_badge_ar || initialPlatformSettings.heroBadgeAr,
+            heroBadgeEn: data.hero_badge_en || initialPlatformSettings.heroBadgeEn,
+            heroTitleAr: data.hero_title_ar || initialPlatformSettings.heroTitleAr,
+            heroTitleEn: data.hero_title_en || initialPlatformSettings.heroTitleEn,
+            heroDescAr: data.hero_desc_ar || initialPlatformSettings.heroDescAr,
+            heroDescEn: data.hero_desc_en || initialPlatformSettings.heroDescEn,
+            heroBtnAr: data.hero_btn_ar || initialPlatformSettings.heroBtnAr,
+            heroBtnEn: data.hero_btn_en || initialPlatformSettings.heroBtnEn,
+            wheelPrizes: data.wheel_prizes || null
           };
           localStorage.setItem('noon_platform_settings', JSON.stringify(s));
           return s;
@@ -546,7 +602,7 @@ export const db = {
     }
     const local = localStorage.getItem('noon_platform_settings');
     if (local) {
-      try { return JSON.parse(local); } catch(e) {}
+      try { return { ...initialPlatformSettings, ...JSON.parse(local) }; } catch(e) {}
     }
     return initialPlatformSettings;
   },
@@ -566,6 +622,16 @@ export const db = {
           delivery_fee: updated.deliveryFee,
           currency_ar: updated.currencyAr,
           currency_en: updated.currencyEn,
+          hero_bg: updated.heroBg,
+          hero_badge_ar: updated.heroBadgeAr,
+          hero_badge_en: updated.heroBadgeEn,
+          hero_title_ar: updated.heroTitleAr,
+          hero_title_en: updated.heroTitleEn,
+          hero_desc_ar: updated.heroDescAr,
+          hero_desc_en: updated.heroDescEn,
+          hero_btn_ar: updated.heroBtnAr,
+          hero_btn_en: updated.heroBtnEn,
+          wheel_prizes: updated.wheelPrizes || null,
           updated_at: new Date().toISOString()
         });
       } catch (e) {
@@ -671,7 +737,16 @@ export const initialPlatformSettings = {
   instagram: '@noon.boutique',
   deliveryFee: 5000,
   currencyAr: 'د.ع',
-  currencyEn: 'IQD'
+  currencyEn: 'IQD',
+  heroBg: 'images/hero_noon.jpg',
+  heroBadgeAr: 'منصة نون للأزياء النسائية',
+  heroBadgeEn: "WOMEN'S MULTI-STORE PLATFORM",
+  heroTitleAr: 'أناقة نسائية لا متناهية',
+  heroTitleEn: 'Timeless Fluidity & Grace',
+  heroDescAr: 'تصفحي أرقى دور الأزياء النسائية المستقلة تحت سقف واحد',
+  heroDescEn: "Discover distinct independent women's fashion boutiques under one roof",
+  heroBtnAr: 'اكتشفي المتاجر',
+  heroBtnEn: 'EXPLORE BOUTIQUES'
 };
 
 // Initial Luxury Fashion Stories

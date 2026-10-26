@@ -25,6 +25,31 @@ function showToast(msg, isError = false) {
     setTimeout(() => t.classList.remove('show'), 3500);
 }
 
+// --- Image File Upload Handler (Direct Import from Device/Mobile) ---
+window.handleImageUpload = (inputEl, targetInputId, previewImgId) => {
+    if (!inputEl.files || !inputEl.files[0]) return;
+    const file = inputEl.files[0];
+    if (file.size > 5 * 1024 * 1024) {
+        showToast("حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 5 ميجابايت", true);
+        return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const base64Data = e.target.result;
+        const targetInput = document.getElementById(targetInputId);
+        if (targetInput) targetInput.value = base64Data;
+        if (previewImgId) {
+            const previewImg = document.getElementById(previewImgId);
+            if (previewImg) previewImg.src = base64Data;
+        }
+        showToast("تم استيراد الصورة بنجاح من جهازكِ!");
+    };
+    reader.onerror = () => {
+        showToast("فشل استيراد الصورة من الجهاز", true);
+    };
+    reader.readAsDataURL(file);
+};
+
 // --- Strict Supabase Auth Handling ---
 const checkSession = async () => {
     const overlay = document.getElementById('auth-overlay');
@@ -185,6 +210,7 @@ window.showSection = (sec) => {
     toggleSidebar(false);
 
     if (sec === 'stores') renderStoresSection();
+    if (sec === 'hero') renderHeroSection();
     if (sec === 'categories') renderCategoriesSection();
     if (sec === 'products') renderProductsSection();
     if (sec === 'game') renderGameSection();
@@ -340,6 +366,101 @@ window.toggleStoreActive = async (id) => {
 };
 
 // ============================================================
+// 1.5. HERO SECTION MANAGEMENT (تخصيص واجهة الهيرو الرئيسية)
+// ============================================================
+async function renderHeroSection() {
+    platformSettings = await db.getPlatformSettings();
+    const bgUrlInput = document.getElementById('hero-bg-url');
+    const bgPreview = document.getElementById('hero-bg-preview');
+    const badgeAr = document.getElementById('hero-badge-ar');
+    const badgeEn = document.getElementById('hero-badge-en');
+    const titleAr = document.getElementById('hero-title-ar');
+    const titleEn = document.getElementById('hero-title-en');
+    const descAr = document.getElementById('hero-desc-ar');
+    const descEn = document.getElementById('hero-desc-en');
+    const btnAr = document.getElementById('hero-btn-ar');
+    const btnEn = document.getElementById('hero-btn-en');
+
+    if (bgUrlInput) bgUrlInput.value = platformSettings.heroBg || 'images/hero_noon.jpg';
+    if (bgPreview) bgPreview.src = platformSettings.heroBg ? (platformSettings.heroBg.startsWith('http') || platformSettings.heroBg.startsWith('data:') ? platformSettings.heroBg : '../' + platformSettings.heroBg) : '../images/hero_noon.jpg';
+    if (badgeAr) badgeAr.value = platformSettings.heroBadgeAr || 'منصة نون للأزياء النسائية';
+    if (badgeEn) badgeEn.value = platformSettings.heroBadgeEn || "WOMEN'S MULTI-STORE PLATFORM";
+    if (titleAr) titleAr.value = platformSettings.heroTitleAr || 'أناقة نسائية لا متناهية';
+    if (titleEn) titleEn.value = platformSettings.heroTitleEn || 'Timeless Fluidity & Grace';
+    if (descAr) descAr.value = platformSettings.heroDescAr || 'تصفحي أرقى دور الأزياء النسائية المستقلة تحت سقف واحد';
+    if (descEn) descEn.value = platformSettings.heroDescEn || "Discover distinct independent women's fashion boutiques under one roof";
+    if (btnAr) btnAr.value = platformSettings.heroBtnAr || 'اكتشفي المتاجر';
+    if (btnEn) btnEn.value = platformSettings.heroBtnEn || 'EXPLORE BOUTIQUES';
+}
+
+window.saveHeroSection = async (e) => {
+    e.preventDefault();
+    const bg = document.getElementById('hero-bg-url')?.value.trim() || 'images/hero_noon.jpg';
+    const badgeAr = document.getElementById('hero-badge-ar')?.value.trim();
+    const badgeEn = document.getElementById('hero-badge-en')?.value.trim();
+    const titleAr = document.getElementById('hero-title-ar')?.value.trim();
+    const titleEn = document.getElementById('hero-title-en')?.value.trim();
+    const descAr = document.getElementById('hero-desc-ar')?.value.trim();
+    const descEn = document.getElementById('hero-desc-en')?.value.trim();
+    const btnAr = document.getElementById('hero-btn-ar')?.value.trim();
+    const btnEn = document.getElementById('hero-btn-en')?.value.trim();
+
+    platformSettings = await db.savePlatformSettings({
+        heroBg: bg,
+        heroBadgeAr: badgeAr,
+        heroBadgeEn: badgeEn,
+        heroTitleAr: titleAr,
+        heroTitleEn: titleEn,
+        heroDescAr: descAr,
+        heroDescEn: descEn,
+        heroBtnAr: btnAr,
+        heroBtnEn: btnEn
+    });
+
+    showToast("تم حفظ ونشر إعدادات واجهة الهيرو بنجاح!");
+};
+
+window.autoTranslateHeroBadge = async () => {
+    const ar = document.getElementById('hero-badge-ar')?.value;
+    if (!ar) return showToast("يرجى كتابة الشارة بالعربي أولاً", true);
+    showToast("جاري ترجمة الشارة...");
+    const en = await translateArabicToEnglish(ar);
+    const enEl = document.getElementById('hero-badge-en');
+    if (enEl) enEl.value = en.toUpperCase();
+    showToast("تمت الترجمة بنجاح!");
+};
+
+window.autoTranslateHeroTitle = async () => {
+    const ar = document.getElementById('hero-title-ar')?.value;
+    if (!ar) return showToast("يرجى كتابة العنوان بالعربي أولاً", true);
+    showToast("جاري ترجمة العنوان الرئيسي...");
+    const en = await translateArabicToEnglish(ar);
+    const enEl = document.getElementById('hero-title-en');
+    if (enEl) enEl.value = en;
+    showToast("تمت ترجمة العنوان بنجاح!");
+};
+
+window.autoTranslateHeroDesc = async () => {
+    const ar = document.getElementById('hero-desc-ar')?.value;
+    if (!ar) return showToast("يرجى كتابة الوصف بالعربي أولاً", true);
+    showToast("جاري ترجمة الوصف...");
+    const en = await translateArabicToEnglish(ar);
+    const enEl = document.getElementById('hero-desc-en');
+    if (enEl) enEl.value = en;
+    showToast("تمت ترجمة الوصف بنجاح!");
+};
+
+window.autoTranslateHeroBtn = async () => {
+    const ar = document.getElementById('hero-btn-ar')?.value;
+    if (!ar) return showToast("يرجى كتابة نص الزر بالعربي أولاً", true);
+    showToast("جاري ترجمة نص الزر...");
+    const en = await translateArabicToEnglish(ar);
+    const enEl = document.getElementById('hero-btn-en');
+    if (enEl) enEl.value = en.toUpperCase();
+    showToast("تمت ترجمة نص الزر بنجاح!");
+};
+
+// ============================================================
 // 2. CATEGORIES MANAGEMENT (إدارة الأقسام)
 // ============================================================
 function populateStoreCategorySelect() {
@@ -430,18 +551,22 @@ window.deleteCategory = async (storeId, catId) => {
 // ============================================================
 // 3. PRODUCTS MANAGEMENT (إدارة المنتجات)
 // ============================================================
-function populateProductStoreFilter() {
+function populateProductStoreFilter(currentVal = 'all') {
     const filter = document.getElementById('product-store-filter');
     if (!filter) return;
+    const existingVal = currentVal || filter.value || 'all';
     filter.innerHTML = `
-        <option value="all">عرض جميع منتجات المتاجر (${products.length})</option>
-        ${stores.map(s => `<option value="${sanitizeHtml(s.id)}">متجر: ${sanitizeHtml(s.nameAr)}</option>`).join('')}
+        <option value="all" ${existingVal === 'all' ? 'selected' : ''}>عرض جميع منتجات المتاجر (${products.length})</option>
+        ${stores.map(s => `<option value="${sanitizeHtml(s.id)}" ${s.id === existingVal ? 'selected' : ''}>متجر: ${sanitizeHtml(s.nameAr)}</option>`).join('')}
     `;
+    filter.value = existingVal;
 }
 
 function renderProductsSection() {
-    populateProductStoreFilter();
-    const filterVal = document.getElementById('product-store-filter')?.value || 'all';
+    const filterEl = document.getElementById('product-store-filter');
+    const selectedStore = filterEl ? filterEl.value : 'all';
+    populateProductStoreFilter(selectedStore);
+    const filterVal = filterEl ? filterEl.value : 'all';
     const grid = document.getElementById('products-admin-grid');
     if (!grid) return;
 
@@ -583,8 +708,17 @@ window.deleteProduct = async (id) => {
 };
 
 // ============================================================
-// 4. DAILY GAME CONFIG (إدارة لعبة اليوم)
+// 4. DAILY GAME CONFIG (إدارة لعبة اليوم - استوديو عجلة الحظ)
 // ============================================================
+const defaultWheelPrizes = [
+    { id: 1, nameAr: 'خصم 20% على إجمالي طلبكِ', nameEn: '20% OFF Entire Order', code: 'NOON-20VIP', color: '#1B2E1D', textColor: '#D4AF37', icon: '👑', weight: 25, type: 'voucher', note: 'ألف مبروك! حصلتِ على خصم 20% على كامل الفاتورة' },
+    { id: 2, nameAr: 'توصيل مجاني فوري لطلبكِ', nameEn: 'Free Delivery', code: 'FREE-DELIVERY', color: '#D4AF37', textColor: '#1B2E1D', icon: '🚚', weight: 30, type: 'voucher', note: 'ألف مبروك! حصلتِ على توصيل مجاني لطلبكِ القادم' },
+    { id: 3, nameAr: 'قسيمة بقيمة 15,000 د.ع', nameEn: '15,000 IQD Voucher', code: 'NOON-15K', color: '#142716', textColor: '#FCFAE8', icon: '💎', weight: 15, type: 'voucher', note: 'ألف مبروك! قسيمة بقيمة 15,000 د.ع لطلبكِ' },
+    { id: 4, nameAr: 'خصم 10% إضافي فوري', nameEn: '10% Extra Discount', code: 'EXTRA-10', color: '#C9A02C', textColor: '#1B2E1D', icon: '✨', weight: 35, type: 'voucher', note: 'ألف مبروك! خصم 10% إضافي فوري' },
+    { id: 5, nameAr: 'هدية وشاح حريري فاخر', nameEn: 'Silk Scarf Gift', code: 'SILK-GIFT', color: '#1B2E1D', textColor: '#D4AF37', icon: '🎁', weight: 10, type: 'gift', note: 'ألف مبروك! هدية وشاح حريري فاخر يُضاف لطلبكِ' },
+    { id: 6, nameAr: 'خصم 30% للمشتريات الكبرى', nameEn: '30% Grand Discount', code: 'NOON-30VIP', color: '#D4AF37', textColor: '#1B2E1D', icon: '⭐', weight: 8, type: 'voucher', note: 'ألف مبروك! خصم 30% فوري' }
+];
+
 function renderGameSection() {
     const attemptsInput = document.getElementById('game-attempts-input');
     const activeToggle = document.getElementById('game-active-toggle');
@@ -593,22 +727,167 @@ function renderGameSection() {
     if (attemptsInput) attemptsInput.value = gameConfig.dailyAttemptsAllowed || 1;
     if (activeToggle) activeToggle.checked = gameConfig.enabled !== false;
 
-    if (tbody && gameConfig.prizes) {
+    if (!gameConfig.prizes || gameConfig.prizes.length === 0) {
+        gameConfig.prizes = [...defaultWheelPrizes];
+    }
+
+    if (tbody) {
         tbody.innerHTML = gameConfig.prizes.map((p, i) => `
-            <tr class="border-b border-primary/5 hover:bg-primary/2">
-                <td class="p-2 text-xl">${sanitizeHtml(p.symbol || '💎')}</td>
-                <td class="p-2 font-bold">${sanitizeHtml(p.nameAr)}</td>
-                <td class="p-2 text-primary/60">${sanitizeHtml(p.nameEn)}</td>
-                <td class="p-2 font-mono text-accent font-bold">${sanitizeHtml(p.code || 'بدون كود')}</td>
-                <td class="p-2">
-                    <input type="number" min="0" max="100" class="input-field py-1 px-2 w-16 text-center text-xs" value="${Number(p.weight)}" id="prize-weight-${i}">
+            <tr class="border-b border-primary/5 hover:bg-primary/2 transition-colors">
+                <td class="p-3">
+                    <span class="text-2xl">${sanitizeHtml(p.icon || p.symbol || '🎁')}</span>
+                </td>
+                <td class="p-3 font-bold text-primary">
+                    ${sanitizeHtml(p.nameAr)}
+                    ${p.note ? `<div class="text-[10px] text-primary/40 font-normal line-clamp-1">${sanitizeHtml(p.note)}</div>` : ''}
+                </td>
+                <td class="p-3 text-primary/60">${sanitizeHtml(p.nameEn)}</td>
+                <td class="p-3">
+                    <div class="flex items-center gap-2">
+                        <span class="w-4 h-4 rounded-full border border-black/10 shadow-sm" style="background-color: ${sanitizeHtml(p.color || '#1B2E1D')}"></span>
+                        <code class="text-[11px] font-mono">${sanitizeHtml(p.color || '#1B2E1D')}</code>
+                    </div>
+                </td>
+                <td class="p-3">
+                    ${p.code ? `<span class="bg-accent/20 text-primary font-mono font-bold px-2.5 py-1 rounded-lg text-xs">${sanitizeHtml(p.code)}</span>` : '<span class="text-primary/40 text-[11px]">بدون كود</span>'}
+                </td>
+                <td class="p-3">
+                    <div class="flex items-center gap-1">
+                        <input type="number" min="1" max="100" class="input-field py-1 px-2 w-16 text-center text-xs font-bold" value="${Number(p.weight || 10)}" id="prize-weight-${i}">
+                        <span class="text-primary/40 text-[10px]">%</span>
+                    </div>
+                </td>
+                <td class="p-3 text-center">
+                    <div class="flex items-center justify-center gap-1.5">
+                        <button onclick="openPrizeModal(${i})" class="btn-gold px-2.5 py-1 rounded-lg text-xs flex items-center gap-1" title="تعديل الشريحة">
+                            <span class="material-symbols-outlined text-xs">edit</span>
+                            <span>تعديل</span>
+                        </button>
+                        <button onclick="deletePrize(${i})" class="btn-outline px-2 py-1 rounded-lg text-xs text-red-500 border-red-200 hover:bg-red-50" title="حذف الشريحة">
+                            <span class="material-symbols-outlined text-xs">delete</span>
+                        </button>
+                    </div>
                 </td>
             </tr>
         `).join('');
     }
 }
 
-window.saveGameConfigChanges = () => {
+window.openPrizeModal = (index = -1) => {
+    const editIndexEl = document.getElementById('prize-edit-index');
+    const titleModal = document.getElementById('prize-modal-title');
+    const form = document.getElementById('prize-form');
+    if (form) form.reset();
+
+    if (index >= 0 && gameConfig.prizes[index]) {
+        const p = gameConfig.prizes[index];
+        if (editIndexEl) editIndexEl.value = index;
+        if (titleModal) titleModal.innerText = `تعديل الشريحة: ${p.nameAr}`;
+        document.getElementById('prize-icon').value = p.icon || p.symbol || '🎁';
+        document.getElementById('prize-color').value = p.color || '#1B2E1D';
+        document.getElementById('prize-color-picker').value = p.color || '#1B2E1D';
+        document.getElementById('prize-name-ar').value = p.nameAr || '';
+        document.getElementById('prize-name-en').value = p.nameEn || '';
+        document.getElementById('prize-weight').value = p.weight || 15;
+        document.getElementById('prize-type-select').value = p.type || (p.code ? 'voucher' : 'gift');
+        document.getElementById('prize-voucher-code').value = p.code || '';
+        document.getElementById('prize-note').value = p.note || '';
+    } else {
+        if (editIndexEl) editIndexEl.value = -1;
+        if (titleModal) titleModal.innerText = 'إضافة شريحة / جائزة جديدة';
+        document.getElementById('prize-icon').value = '🎁';
+        document.getElementById('prize-color').value = '#1B2E1D';
+        document.getElementById('prize-color-picker').value = '#1B2E1D';
+        document.getElementById('prize-weight').value = 15;
+        document.getElementById('prize-type-select').value = 'voucher';
+        document.getElementById('prize-voucher-code').value = '';
+        document.getElementById('prize-note').value = '';
+    }
+
+    togglePrizeVoucherField();
+    document.getElementById('prize-modal')?.classList.add('open');
+};
+
+window.closePrizeModal = () => {
+    document.getElementById('prize-modal')?.classList.remove('open');
+};
+
+window.togglePrizeVoucherField = () => {
+    const type = document.getElementById('prize-type-select')?.value;
+    const vGroup = document.getElementById('prize-voucher-group');
+    if (vGroup) {
+        if (type === 'voucher') {
+            vGroup.classList.remove('hidden');
+        } else {
+            vGroup.classList.add('hidden');
+        }
+    }
+};
+
+window.autoTranslatePrize = async () => {
+    const ar = document.getElementById('prize-name-ar')?.value;
+    if (!ar) return showToast("يرجى كتابة اسم الجائزة بالعربي أولاً", true);
+    showToast("جاري ترجمة اسم الجائزة...");
+    const en = await translateArabicToEnglish(ar);
+    const enEl = document.getElementById('prize-name-en');
+    if (enEl) enEl.value = en;
+    showToast("تمت الترجمة بنجاح!");
+};
+
+window.savePrize = async (e) => {
+    e.preventDefault();
+    const index = parseInt(document.getElementById('prize-edit-index')?.value);
+    const icon = document.getElementById('prize-icon')?.value.trim() || '🎁';
+    const color = document.getElementById('prize-color')?.value.trim() || '#1B2E1D';
+    const nameAr = document.getElementById('prize-name-ar')?.value.trim();
+    const nameEn = document.getElementById('prize-name-en')?.value.trim() || nameAr;
+    const weight = parseInt(document.getElementById('prize-weight')?.value) || 10;
+    const type = document.getElementById('prize-type-select')?.value || 'voucher';
+    const code = type === 'voucher' ? document.getElementById('prize-voucher-code')?.value.trim().toUpperCase() : '';
+    const note = document.getElementById('prize-note')?.value.trim() || '';
+
+    const prizeObj = {
+        id: index >= 0 && gameConfig.prizes[index]?.id ? gameConfig.prizes[index].id : ('prize_' + Date.now()),
+        nameAr,
+        nameEn,
+        icon,
+        symbol: icon,
+        color,
+        textColor: (color === '#1B2E1D' || color.toLowerCase().includes('1b2e')) ? '#D4AF37' : '#1B2E1D',
+        weight,
+        type,
+        code,
+        note
+    };
+
+    if (!gameConfig.prizes) gameConfig.prizes = [];
+
+    if (index >= 0) {
+        gameConfig.prizes[index] = prizeObj;
+    } else {
+        gameConfig.prizes.push(prizeObj);
+    }
+
+    await db.saveGameConfig(gameConfig);
+    closePrizeModal();
+    renderGameSection();
+    showToast(index >= 0 ? "تم تحديث الشريحة بنجاح!" : "تمت إضافة الشريحة الجديدة إلى العجلة بنجاح!");
+};
+
+window.deletePrize = async (index) => {
+    if (gameConfig.prizes.length <= 2) {
+        showToast("يجب أن تحتوي العجلة على شريحتين على الأقل!", true);
+        return;
+    }
+    if (!confirm(`هل أنتِ متأكدة من حذف شريحة "${gameConfig.prizes[index]?.nameAr}"؟`)) return;
+
+    gameConfig.prizes.splice(index, 1);
+    await db.saveGameConfig(gameConfig);
+    renderGameSection();
+    showToast("تم حذف الشريحة بنجاح");
+};
+
+window.saveGameConfigChanges = async () => {
     const attempts = parseInt(document.getElementById('game-attempts-input')?.value) || 1;
     const enabled = document.getElementById('game-active-toggle')?.checked;
 
@@ -621,8 +900,8 @@ window.saveGameConfigChanges = () => {
 
     gameConfig.dailyAttemptsAllowed = attempts;
     gameConfig.enabled = enabled;
-    localStorage.setItem("noon_game_config", JSON.stringify(gameConfig));
-    showToast("تم حفظ إعدادات لعبة اليوم بنجاح!");
+    await db.saveGameConfig(gameConfig);
+    showToast("تم حفظ إعدادات ونسب الفوز في العجلة بنجاح!");
 };
 
 // ============================================================
@@ -650,11 +929,10 @@ async function renderCommentsSection() {
 }
 
 window.deleteComment = async (id) => {
-    let reviews = await db.getReviews();
-    reviews = reviews.filter(r => r.id !== id);
-    localStorage.setItem('noon_reviews', JSON.stringify(reviews));
+    if (!confirm("هل أنتِ متأكدة من حذف هذا التعليق نهائياً من قاعدة البيانات؟")) return;
+    await db.deleteReview(id);
     await renderCommentsSection();
-    showToast("تمت أرشفة وحذف التعليق بنجاح");
+    showToast("تم حذف التعليق نهائياً من المنصة");
 };
 
 // ============================================================

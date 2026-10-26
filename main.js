@@ -691,6 +691,28 @@ const fortuneWheelPrizes = [
   { id: 6, nameAr: 'خصم 30% للمشتريات الكبرى', nameEn: '30% Grand Discount', code: 'NOON-30VIP', color: '#D4AF37', textColor: '#1B2E1D', icon: '⭐', weight: 8 }
 ];
 
+function getActiveWheelPrizes() {
+  if (state.gameConfig && state.gameConfig.prizes && state.gameConfig.prizes.length > 0) {
+    return state.gameConfig.prizes.map((p, i) => {
+      const color = p.color || (i % 2 === 0 ? '#1B2E1D' : '#D4AF37');
+      const isDark = color === '#1B2E1D' || color.toLowerCase().includes('1b2e') || color.toLowerCase().includes('1427');
+      return {
+        id: p.id || (i + 1),
+        nameAr: p.nameAr,
+        nameEn: p.nameEn || p.nameAr,
+        code: p.code || '',
+        color: color,
+        textColor: isDark ? '#D4AF37' : '#1B2E1D',
+        icon: p.icon || p.symbol || '🎁',
+        weight: Number(p.weight) || 10,
+        type: p.type || (p.code ? 'voucher' : 'gift'),
+        note: p.note || ''
+      };
+    });
+  }
+  return fortuneWheelPrizes;
+}
+
 let wheelCurrentAngle = 0;
 let wheelAnimationId = null;
 
@@ -703,7 +725,8 @@ function drawFortuneWheel(rotationAngle = 0) {
   const cx = width / 2;
   const cy = height / 2;
   const radius = cx - 10;
-  const numSlices = fortuneWheelPrizes.length;
+  const prizes = getActiveWheelPrizes();
+  const numSlices = prizes.length;
   const arc = (2 * Math.PI) / numSlices;
   const lang = i18n.currentLang;
 
@@ -721,7 +744,7 @@ function drawFortuneWheel(rotationAngle = 0) {
   ctx.restore();
 
   // Slices
-  fortuneWheelPrizes.forEach((prize, i) => {
+  prizes.forEach((prize, i) => {
     const angle = rotationAngle + (i * arc);
     ctx.save();
     ctx.beginPath();
@@ -818,21 +841,22 @@ window.spinFortuneWheel = () => {
   state.isSpinning = true;
 
   // 3. Select winning prize based on weights
-  const totalWeight = fortuneWheelPrizes.reduce((s, p) => s + (p.weight || 10), 0);
+  const prizes = getActiveWheelPrizes();
+  const totalWeight = prizes.reduce((s, p) => s + (p.weight || 10), 0);
   let randomVal = Math.random() * totalWeight;
   let winnerIndex = 0;
-  for (let i = 0; i < fortuneWheelPrizes.length; i++) {
-    if (randomVal < (fortuneWheelPrizes[i].weight || 10)) {
+  for (let i = 0; i < prizes.length; i++) {
+    if (randomVal < (prizes[i].weight || 10)) {
       winnerIndex = i;
       break;
     }
-    randomVal -= (fortuneWheelPrizes[i].weight || 10);
+    randomVal -= (prizes[i].weight || 10);
   }
-  const selectedPrize = fortuneWheelPrizes[winnerIndex];
+  const selectedPrize = prizes[winnerIndex];
 
   // 4. Calculate landing rotation angle:
   // Pointer is at TOP: angle = -PI/2 (or 3*PI/2)
-  const numSlices = fortuneWheelPrizes.length;
+  const numSlices = prizes.length;
   const arc = (2 * Math.PI) / numSlices;
   const targetSliceMid = (winnerIndex * arc) + (arc / 2);
   // We want: (wheelCurrentAngle + totalSpin + targetSliceMid) % 2PI = 3*PI/2
@@ -893,8 +917,20 @@ window.openWheelWinModal = (prize) => {
   const codeEl = document.getElementById('wheel-win-code');
   const copyFeedback = document.getElementById('copy-feedback');
 
-  if (titleEl) titleEl.innerText = lang === 'en' ? prize.nameEn : prize.nameAr;
-  if (codeEl) codeEl.innerText = prize.code || 'NOON-LUCKY';
+  if (titleEl) {
+    titleEl.innerText = lang === 'en' ? prize.nameEn : prize.nameAr;
+    if (prize.note) {
+      titleEl.innerHTML += `<div class="text-[11px] font-sans font-light mt-1 text-primary/70">${sanitizeHtml(prize.note)}</div>`;
+    }
+  }
+  if (codeEl) {
+    if (prize.code) {
+      codeEl.innerText = prize.code;
+      if (codeEl.parentElement) codeEl.parentElement.style.display = 'flex';
+    } else {
+      if (codeEl.parentElement) codeEl.parentElement.style.display = 'none';
+    }
+  }
   if (copyFeedback) copyFeedback.classList.add('hidden');
 
   modal.classList.remove('hidden');
@@ -1436,13 +1472,55 @@ window.toggleAccordion = (btn) => {
   }
 };
 
+// --- Hero Section Dynamic Customization ---
+export function renderHeroContent() {
+  const settings = state.platformSettings;
+  if (!settings) return;
+  const isAr = i18n.currentLang === 'ar';
+
+  const heroBg = document.getElementById('hero-bg-img');
+  const heroBadge = document.getElementById('hero-badge');
+  const heroTitle = document.getElementById('hero-title');
+  const heroDesc = document.getElementById('hero-desc');
+  const heroBtnText = document.getElementById('hero-btn-text');
+
+  if (heroBg && settings.heroBg) {
+    heroBg.src = settings.heroBg;
+  }
+  if (heroBadge) {
+    heroBadge.textContent = isAr 
+      ? (settings.heroBadgeAr || 'منصة نون للأزياء النسائية') 
+      : (settings.heroBadgeEn || "WOMEN'S MULTI-STORE PLATFORM");
+  }
+  if (heroTitle) {
+    heroTitle.textContent = isAr 
+      ? (settings.heroTitleAr || 'أناقة نسائية لا متناهية') 
+      : (settings.heroTitleEn || 'Timeless Fluidity & Grace');
+  }
+  if (heroDesc) {
+    heroDesc.textContent = isAr 
+      ? (settings.heroDescAr || 'تصفحي أرقى دور الأزياء النسائية المستقلة تحت سقف واحد') 
+      : (settings.heroDescEn || "Discover distinct independent women's fashion boutiques under one roof");
+  }
+  if (heroBtnText) {
+    heroBtnText.textContent = isAr 
+      ? (settings.heroBtnAr || 'اكتشفي المتاجر') 
+      : (settings.heroBtnEn || 'EXPLORE BOUTIQUES');
+  }
+}
+
 window.toggleLanguage = () => {
   i18n.toggleLanguage();
   const active = document.querySelector('.screen.active');
   if (active) renderScreenContent(active.id.replace('screen-', ''));
+  renderHeroContent();
   updateCartUI();
   updateGameUI();
 };
+
+window.addEventListener('languageChanged', () => {
+  renderHeroContent();
+});
 
 window.closeSuccess = () => {
   document.getElementById('success-screen')?.classList.add('hidden');
@@ -1615,6 +1693,7 @@ const boot = async () => {
       img.src = state.platformSettings.logo;
     });
   }
+  renderHeroContent();
   setLoad(45);
 
   state.stores = await db.getStores();

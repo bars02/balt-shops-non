@@ -120,6 +120,10 @@
             <span class="material-symbols-outlined text-accent">storefront</span>
             <span>إدارة المتاجر (3 متاجر)</span>
         </button>
+        <button class="nav-btn" id="nav-hero" onclick="showSection('hero')">
+            <span class="material-symbols-outlined text-accent">brush</span>
+            <span>واجهة الهيرو الرئيسية</span>
+        </button>
         <button class="nav-btn" id="nav-categories" onclick="showSection('categories')">
             <span class="material-symbols-outlined">category</span>
             <span>أقسام وتصنيفات المتاجر</span>
@@ -181,6 +185,120 @@
             </div>
         </div>
 
+        <!-- ===================== 1.5. SECTION: HERO (تخصيص واجهة الهيرو الرئيسية) ===================== -->
+        <div class="section" id="section-hero">
+            <div class="mb-8">
+                <h2 class="serif text-3xl font-bold text-primary">تخصيص واجهة الهيرو الرئيسية</h2>
+                <p class="text-xs opacity-60 mt-1">التحكم الدقيق بصورة الخلفية، الشارة، العناوين، وزر الاستكشاف بالعربي والإنكليزي مع إمكانية استيراد الصور مباشرة.</p>
+            </div>
+
+            <div class="card p-6 md:p-8 max-w-3xl bg-white shadow-sm">
+                <form id="hero-settings-form" onsubmit="saveHeroSection(event)" class="space-y-6 text-xs">
+                    
+                    <!-- Hero Background Image with Import / Upload -->
+                    <div class="p-5 bg-primary/5 rounded-2xl border border-primary/10">
+                        <label class="font-bold block mb-2 text-sm text-primary">صورة خلفية واجهة الهيرو الرئيسية</label>
+                        <div class="flex flex-col sm:flex-row items-center gap-5">
+                            <div class="w-full sm:w-44 h-28 rounded-2xl border-2 border-accent overflow-hidden shadow-md bg-black/10 shrink-0 relative">
+                                <img id="hero-bg-preview" src="../images/hero_noon.jpg" class="w-full h-full object-cover">
+                            </div>
+                            <div class="flex-1 w-full space-y-2">
+                                <label class="text-[11px] opacity-70 block mb-1">صورة الخلفية (اختاري ملفاً من جهازكِ أو ضعي رابطاً)</label>
+                                <div class="flex gap-2">
+                                    <input type="text" id="hero-bg-url" class="input-field text-left flex-1" dir="ltr" placeholder="images/hero_noon.jpg" oninput="document.getElementById('hero-bg-preview').src = this.value || '../images/hero_noon.jpg'">
+                                    <label class="btn-gold px-3.5 py-2.5 rounded-xl cursor-pointer text-xs flex items-center gap-1 shrink-0 font-bold" title="اختاري صورة من جهازكِ">
+                                        <span class="material-symbols-outlined text-sm">upload_file</span>
+                                        <span>استيراد صورة 📁</span>
+                                        <input type="file" accept="image/*" class="hidden" onchange="handleImageUpload(this, 'hero-bg-url', 'hero-bg-preview')">
+                                    </label>
+                                </div>
+                                <p class="text-[10px] text-primary/50">يمكنك رفع صورة عالية الدقة من جهازكِ مباشرة لتعيينها كخلفية فاخرة للواجهة الرئيسية.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Badge Text -->
+                    <div class="p-4 bg-[#fafaf5] rounded-2xl border border-black/5 space-y-3">
+                        <div class="flex justify-between items-center">
+                            <label class="font-bold text-primary">1. الشارة العلوية (Badge / Tag)</label>
+                            <button type="button" onclick="autoTranslateHeroBadge()" class="text-[10px] text-accent font-bold hover:underline flex items-center gap-0.5">✨ ترجمة تلقائية</button>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-[11px] opacity-70 block mb-1">الشارة بالعربي</label>
+                                <input type="text" id="hero-badge-ar" class="input-field" placeholder="منصة نون للأزياء النسائية">
+                            </div>
+                            <div>
+                                <label class="text-[11px] opacity-70 block mb-1">الشارة بالإنجليزي (EN)</label>
+                                <input type="text" id="hero-badge-en" class="input-field" placeholder="WOMEN'S MULTI-STORE PLATFORM">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Main Title -->
+                    <div class="p-4 bg-[#fafaf5] rounded-2xl border border-black/5 space-y-3">
+                        <div class="flex justify-between items-center">
+                            <label class="font-bold text-primary">2. العنوان الرئيسي الكبير (Main Title)</label>
+                            <button type="button" onclick="autoTranslateHeroTitle()" class="text-[10px] text-accent font-bold hover:underline flex items-center gap-0.5">✨ ترجمة تلقائية</button>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-[11px] opacity-70 block mb-1">العنوان بالعربي</label>
+                                <input type="text" id="hero-title-ar" class="input-field font-serif text-sm font-bold" placeholder="أناقة نسائية لا متناهية">
+                            </div>
+                            <div>
+                                <label class="text-[11px] opacity-70 block mb-1">العنوان بالإنجليزي (EN)</label>
+                                <input type="text" id="hero-title-en" class="input-field font-serif text-sm font-bold" placeholder="Timeless Fluidity & Grace">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Subtitle / Description -->
+                    <div class="p-4 bg-[#fafaf5] rounded-2xl border border-black/5 space-y-3">
+                        <div class="flex justify-between items-center">
+                            <label class="font-bold text-primary">3. الوصف التوضيحي (Description / Subtitle)</label>
+                            <button type="button" onclick="autoTranslateHeroDesc()" class="text-[10px] text-accent font-bold hover:underline flex items-center gap-0.5">✨ ترجمة تلقائية</button>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-[11px] opacity-70 block mb-1">الوصف بالعربي</label>
+                                <textarea id="hero-desc-ar" class="input-field h-16 resize-none" placeholder="تصفحي أرقى دور الأزياء النسائية المستقلة تحت سقف واحد"></textarea>
+                            </div>
+                            <div>
+                                <label class="text-[11px] opacity-70 block mb-1">الوصف بالإنجليزي (EN)</label>
+                                <textarea id="hero-desc-en" class="input-field h-16 resize-none" placeholder="Discover distinct independent women's fashion boutiques under one roof"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Button CTA Text -->
+                    <div class="p-4 bg-[#fafaf5] rounded-2xl border border-black/5 space-y-3">
+                        <div class="flex justify-between items-center">
+                            <label class="font-bold text-primary">4. نص زر الاستكشاف (Button CTA Text)</label>
+                            <button type="button" onclick="autoTranslateHeroBtn()" class="text-[10px] text-accent font-bold hover:underline flex items-center gap-0.5">✨ ترجمة تلقائية</button>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-[11px] opacity-70 block mb-1">نص الزر بالعربي</label>
+                                <input type="text" id="hero-btn-ar" class="input-field font-bold" placeholder="اكتشفي المتاجر">
+                            </div>
+                            <div>
+                                <label class="text-[11px] opacity-70 block mb-1">نص الزر بالإنجليزي (EN)</label>
+                                <input type="text" id="hero-btn-en" class="input-field font-bold" placeholder="EXPLORE BOUTIQUES">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pt-2">
+                        <button type="submit" class="btn-gold w-full py-4 rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg flex items-center justify-center gap-2">
+                            <span class="material-symbols-outlined text-sm">save</span>
+                            <span>حفظ ونشر واجهة الهيرو</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <!-- ===================== 2. SECTION: CATEGORIES (إدارة الأقسام) ===================== -->
         <div class="section" id="section-categories">
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
@@ -229,45 +347,56 @@
             </div>
         </div>
 
-        <!-- ===================== 4. SECTION: DAILY GAME (إدارة لعبة اليوم) ===================== -->
+        <!-- ===================== 4. SECTION: DAILY GAME (إدارة عجلة الحظ الدائرية والجوائز) ===================== -->
         <div class="section" id="section-game">
-            <div class="mb-8">
-                <h2 class="serif text-3xl font-bold text-primary">إدارة لعبة اليوم (آلة الحظ)</h2>
-                <p class="text-xs opacity-60 mt-1">تحديد عدد المحاولات اليومية المسموحة والجوائز والأكواد ونسب الاحتمالات.</p>
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+                <div>
+                    <h2 class="serif text-3xl font-bold text-primary">إدارة عجلة الحظ الدائرية (Daily Fortune Wheel)</h2>
+                    <p class="text-xs opacity-60 mt-1">التحكم الكامل بشرائح العجلة: إضافة وحذف الجوائز، تحديد نسب الفوز، ألوان الشرائح، وأكواد الخصم والرسائل.</p>
+                </div>
+                <button class="btn-gold px-5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md shrink-0 font-bold" onclick="openPrizeModal()">
+                    <span class="material-symbols-outlined text-sm">add_circle</span>
+                    <span>إضافة شريحة / جائزة جديدة</span>
+                </button>
             </div>
 
             <!-- Settings Card -->
-            <div class="card p-6 mb-6">
-                <h4 class="font-serif text-base font-bold mb-4">إعدادات المحاولات والتشغيل</h4>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="card p-6 mb-6 bg-white">
+                <div class="flex justify-between items-center mb-4">
+                    <h4 class="font-serif text-base font-bold text-primary">إعدادات المحاولات والتشغيل</h4>
+                    <button class="btn-gold px-4 py-2 rounded-xl text-xs font-bold" onclick="saveGameConfigChanges()">حفظ إعدادات اللعبة</button>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                     <div>
-                        <label class="text-xs font-bold block mb-1">عدد المحاولات اليومية المسموحة لكل مستخدم</label>
+                        <label class="font-bold block mb-1 text-primary/70">عدد المحاولات اليومية المسموحة لكل مستخدم</label>
                         <input type="number" id="game-attempts-input" class="input-field" min="1" max="10" value="1">
                     </div>
                     <div class="flex items-center gap-2 pt-6">
-                        <label class="flex items-center gap-2 cursor-pointer text-xs font-bold">
+                        <label class="flex items-center gap-2 cursor-pointer font-bold">
                             <input type="checkbox" id="game-active-toggle" checked class="w-4 h-4 text-accent">
-                            <span>تفعيل لعبة اليوم على المنصة</span>
+                            <span>تفعيل عجلة الحظ على المنصة</span>
                         </label>
                     </div>
                 </div>
             </div>
 
-            <!-- Prizes Table -->
-            <div class="card p-6">
+            <!-- Prizes Table Card -->
+            <div class="card p-6 bg-white">
                 <div class="flex justify-between items-center mb-4">
-                    <h4 class="font-serif text-base font-bold">جدول الجوائز ونسب الفوز (احتمالات العتلة)</h4>
-                    <button class="btn-gold px-4 py-2 rounded-xl text-xs" onclick="saveGameConfigChanges()">حفظ إعدادات اللعبة</button>
+                    <h4 class="font-serif text-base font-bold text-primary">جدول شرائح وجوائز العجلة الحالية</h4>
+                    <span class="text-[10px] text-primary/50">تظهر هذه الشرائح على العجلة الدائرية في شاشة لعبة اليوم</span>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-right text-xs">
                         <thead>
-                            <tr class="border-b border-primary/10 text-primary/60 pb-2">
-                                <th class="p-2">الرمز</th>
-                                <th class="p-2">اسم الجائزة (عربي)</th>
-                                <th class="p-2">اسم الجائزة (EN)</th>
-                                <th class="p-2">كود القسيمة</th>
-                                <th class="p-2">نسبة الاحتمال (%)</th>
+                            <tr class="border-b border-primary/10 text-primary/60 pb-2 text-[11px]">
+                                <th class="p-2.5">الشريحة</th>
+                                <th class="p-2.5">اسم الجائزة (عربي)</th>
+                                <th class="p-2.5">اسم الجائزة (EN)</th>
+                                <th class="p-2.5">لون الشريحة</th>
+                                <th class="p-2.5">كود القسيمة</th>
+                                <th class="p-2.5">نسبة الفوز / الوزن</th>
+                                <th class="p-2.5 text-center">إجراءات</th>
                             </tr>
                         </thead>
                         <tbody id="game-prizes-tbody">
@@ -323,8 +452,15 @@
                                 <img id="settings-logo-preview" src="../images/logo.png" class="w-full h-full object-cover">
                             </div>
                             <div class="flex-1">
-                                <label class="text-[11px] opacity-70 block mb-1">رابط صورة الشعار (URL أو مسار نسبي)</label>
-                                <input type="text" id="settings-logo-url" class="input-field text-left" dir="ltr" placeholder="images/logo.png" oninput="document.getElementById('settings-logo-preview').src = this.value || '../images/logo.png'">
+                                <label class="text-[11px] opacity-70 block mb-1">صورة الشعار (اختاري ملفاً من جهازكِ أو ضعي رابطاً)</label>
+                                <div class="flex gap-2">
+                                    <input type="text" id="settings-logo-url" class="input-field text-left flex-1" dir="ltr" placeholder="images/logo.png" oninput="document.getElementById('settings-logo-preview').src = this.value || '../images/logo.png'">
+                                    <label class="btn-gold px-3.5 py-2.5 rounded-xl cursor-pointer text-xs flex items-center gap-1 shrink-0 font-bold" title="اختاري صورة من جهازكِ">
+                                        <span class="material-symbols-outlined text-sm">upload_file</span>
+                                        <span>استيراد صورة 📁</span>
+                                        <input type="file" accept="image/*" class="hidden" onchange="handleImageUpload(this, 'settings-logo-url', 'settings-logo-preview')">
+                                    </label>
+                                </div>
                                 <p class="text-[10px] text-primary/50 mt-1">يظهر هذا الشعار في الواجهة العلوية، شاشة الدخول، وزر الستوريات.</p>
                             </div>
                         </div>
@@ -403,8 +539,15 @@
             </div>
 
             <div>
-                <label class="font-bold block mb-1">رابط صورة البانر (الغلاف)</label>
-                <input type="text" id="store-banner-url" class="input-field" placeholder="images/store_elegance.jpg">
+                <label class="font-bold block mb-1">صورة غلاف المتجر (بانر)</label>
+                <div class="flex gap-2">
+                    <input type="text" id="store-banner-url" class="input-field flex-1 text-left" dir="ltr" placeholder="images/store_elegance.jpg">
+                    <label class="btn-gold px-3.5 py-2.5 rounded-xl cursor-pointer text-xs flex items-center gap-1 shrink-0 font-bold" title="اختاري صورة من جهازكِ">
+                        <span class="material-symbols-outlined text-sm">upload_file</span>
+                        <span>استيراد 📁</span>
+                        <input type="file" accept="image/*" class="hidden" onchange="handleImageUpload(this, 'store-banner-url')">
+                    </label>
+                </div>
             </div>
 
             <div class="grid grid-cols-2 gap-3">
@@ -484,8 +627,15 @@
             </div>
 
             <div>
-                <label class="font-bold block mb-1">رابط صورة المنتج *</label>
-                <input type="text" id="product-image-url" class="input-field" placeholder="images/store_elegance.jpg" required>
+                <label class="font-bold block mb-1">صورة المنتج *</label>
+                <div class="flex gap-2">
+                    <input type="text" id="product-image-url" class="input-field flex-1 text-left" dir="ltr" placeholder="images/store_elegance.jpg" required>
+                    <label class="btn-gold px-3.5 py-2.5 rounded-xl cursor-pointer text-xs flex items-center gap-1 shrink-0 font-bold" title="اختاري صورة من جهازكِ">
+                        <span class="material-symbols-outlined text-sm">upload_file</span>
+                        <span>استيراد 📁</span>
+                        <input type="file" accept="image/*" class="hidden" onchange="handleImageUpload(this, 'product-image-url')">
+                    </label>
+                </div>
             </div>
 
             <div>
@@ -557,8 +707,15 @@
                 <input type="text" id="story-title-en" class="input-field" placeholder="New Evening Collection">
             </div>
             <div>
-                <label class="font-bold block mb-1">رابط صورة الستوري *</label>
-                <input type="text" id="story-image-url" class="input-field text-left" dir="ltr" placeholder="images/store_elegance.jpg" required>
+                <label class="font-bold block mb-1">صورة الستوري *</label>
+                <div class="flex gap-2">
+                    <input type="text" id="story-image-url" class="input-field text-left flex-1" dir="ltr" placeholder="images/store_elegance.jpg" required>
+                    <label class="btn-gold px-3.5 py-2.5 rounded-xl cursor-pointer text-xs flex items-center gap-1 shrink-0 font-bold" title="اختاري صورة من جهازكِ">
+                        <span class="material-symbols-outlined text-sm">upload_file</span>
+                        <span>استيراد 📁</span>
+                        <input type="file" accept="image/*" class="hidden" onchange="handleImageUpload(this, 'story-image-url')">
+                    </label>
+                </div>
             </div>
             <div>
                 <label class="font-bold block mb-1">شرح قصير أو تفاصيل (Caption)</label>
@@ -571,6 +728,79 @@
             <div class="pt-3 flex gap-2">
                 <button type="submit" class="btn-gold flex-1 py-2.5 rounded-xl font-bold">نشر الستوري الآن</button>
                 <button type="button" onclick="closeStoryModal()" class="btn-outline px-4 py-2.5 rounded-xl">إلغاء</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ===================== MODAL: PRIZE (إضافة / تعديل شريحة عجلة الحظ) ===================== -->
+<div class="modal-bg" id="prize-modal">
+    <div class="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto border border-accent/30 shadow-2xl">
+        <div class="flex justify-between items-center mb-6 border-b pb-3">
+            <h3 class="serif text-xl font-bold text-primary" id="prize-modal-title">إضافة شريحة / جائزة جديدة</h3>
+            <button onclick="closePrizeModal()" class="material-symbols-outlined text-primary/50 hover:text-primary">close</button>
+        </div>
+        <form id="prize-form" onsubmit="savePrize(event)" class="space-y-4 text-xs">
+            <input type="hidden" id="prize-edit-index" value="-1">
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="font-bold block mb-1">رمز أو إيموجي الشريحة *</label>
+                    <input type="text" id="prize-icon" class="input-field text-center text-lg" placeholder="🎁" required>
+                </div>
+                <div>
+                    <label class="font-bold block mb-1">لون خلفية الشريحة *</label>
+                    <div class="flex gap-2 items-center">
+                        <input type="color" id="prize-color-picker" value="#1B2E1D" class="w-10 h-10 p-0 border-0 rounded cursor-pointer" onchange="document.getElementById('prize-color').value = this.value">
+                        <input type="text" id="prize-color" class="input-field text-left flex-1" dir="ltr" value="#1B2E1D" placeholder="#1B2E1D" oninput="document.getElementById('prize-color-picker').value = this.value">
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="font-bold block">اسم الجائزة بالعربي *</label>
+                        <button type="button" onclick="autoTranslatePrize()" class="text-[10px] text-accent font-bold hover:underline flex items-center gap-0.5">✨ ترجمة تلقائية</button>
+                    </div>
+                    <input type="text" id="prize-name-ar" class="input-field" placeholder="خصم 15% فوري" required>
+                </div>
+                <div>
+                    <label class="font-bold block mb-1">اسم الجائزة بالإنجليزي *</label>
+                    <input type="text" id="prize-name-en" class="input-field" placeholder="15% Off Voucher" required>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="font-bold block mb-1">نسبة الفوز / الوزن النسبي (1 - 100) *</label>
+                    <input type="number" id="prize-weight" class="input-field text-left" dir="ltr" min="1" max="100" value="15" required>
+                    <p class="text-[10px] text-primary/50 mt-0.5">كلما زاد الرقم زادت فرصة الفوز بها.</p>
+                </div>
+                <div>
+                    <label class="font-bold block mb-1">نوع الشريحة</label>
+                    <select id="prize-type-select" class="input-field bg-white font-bold" onchange="togglePrizeVoucherField()">
+                        <option value="voucher">قسيمة شراء بكود (كوبون)</option>
+                        <option value="gift">هدية عينية (فوز بدون كود)</option>
+                        <option value="luck">حظ أوفر (بدون جائزة)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="prize-voucher-group" class="p-4 bg-primary/5 rounded-2xl border border-primary/10 space-y-2">
+                <label class="font-bold block text-primary">كود القسيمة الترويجية (Voucher Code)</label>
+                <input type="text" id="prize-voucher-code" class="input-field text-left font-mono font-bold uppercase tracking-wider" dir="ltr" placeholder="NOON15">
+                <p class="text-[10px] text-primary/50">يظهر هذا الكود للفائزة لنسخه واستخدامه أثناء الطلب.</p>
+            </div>
+
+            <div>
+                <label class="font-bold block mb-1">رسالة الفوز المخصصة (Win Note)</label>
+                <textarea id="prize-note" class="input-field h-16 resize-none" placeholder="ألف مبروك! حصلتِ على خصم 15% على كامل فاتورتكِ، انسخي الكود واستمتعي بالتسوق..."></textarea>
+            </div>
+
+            <div class="pt-4 flex gap-3">
+                <button type="submit" class="btn-gold flex-1 py-3 rounded-xl text-xs font-bold">حفظ الشريحة</button>
+                <button type="button" onclick="closePrizeModal()" class="btn-outline px-6 py-3 rounded-xl text-xs">إلغاء</button>
             </div>
         </form>
     </div>

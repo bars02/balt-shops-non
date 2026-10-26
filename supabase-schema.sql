@@ -139,7 +139,7 @@ CREATE TABLE IF NOT EXISTS public.stories (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 11. PLATFORM SETTINGS TABLE (إعدادات وهوية المنصة والتوصيل)
+-- 11. PLATFORM SETTINGS TABLE (إعدادات وهوية المنصة والتوصيل وواجهة الهيرو)
 CREATE TABLE IF NOT EXISTS public.platform_settings (
     id INT PRIMARY KEY DEFAULT 1,
     logo_url TEXT DEFAULT 'images/logo.png',
@@ -148,8 +148,30 @@ CREATE TABLE IF NOT EXISTS public.platform_settings (
     delivery_fee NUMERIC(12, 2) DEFAULT 5000,
     currency_ar TEXT DEFAULT 'د.ع',
     currency_en TEXT DEFAULT 'IQD',
+    hero_bg TEXT DEFAULT 'images/hero_noon.jpg',
+    hero_badge_ar TEXT DEFAULT 'منصة نون للأزياء النسائية',
+    hero_badge_en TEXT DEFAULT 'WOMEN''S MULTI-STORE PLATFORM',
+    hero_title_ar TEXT DEFAULT 'أناقة نسائية لا متناهية',
+    hero_title_en TEXT DEFAULT 'Timeless Fluidity & Grace',
+    hero_desc_ar TEXT DEFAULT 'تصفحي أرقى دور الأزياء النسائية المستقلة تحت سقف واحد',
+    hero_desc_en TEXT DEFAULT 'Discover distinct independent women''s fashion boutiques under one roof',
+    hero_btn_ar TEXT DEFAULT 'اكتشفي المتاجر',
+    hero_btn_en TEXT DEFAULT 'EXPLORE BOUTIQUES',
+    wheel_prizes JSONB DEFAULT '[]'::jsonb,
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migration helpers for existing platform_settings installations:
+ALTER TABLE public.platform_settings ADD COLUMN IF NOT EXISTS hero_bg TEXT DEFAULT 'images/hero_noon.jpg';
+ALTER TABLE public.platform_settings ADD COLUMN IF NOT EXISTS hero_badge_ar TEXT DEFAULT 'منصة نون للأزياء النسائية';
+ALTER TABLE public.platform_settings ADD COLUMN IF NOT EXISTS hero_badge_en TEXT DEFAULT 'WOMEN''S MULTI-STORE PLATFORM';
+ALTER TABLE public.platform_settings ADD COLUMN IF NOT EXISTS hero_title_ar TEXT DEFAULT 'أناقة نسائية لا متناهية';
+ALTER TABLE public.platform_settings ADD COLUMN IF NOT EXISTS hero_title_en TEXT DEFAULT 'Timeless Fluidity & Grace';
+ALTER TABLE public.platform_settings ADD COLUMN IF NOT EXISTS hero_desc_ar TEXT DEFAULT 'تصفحي أرقى دور الأزياء النسائية المستقلة تحت سقف واحد';
+ALTER TABLE public.platform_settings ADD COLUMN IF NOT EXISTS hero_desc_en TEXT DEFAULT 'Discover distinct independent women''s fashion boutiques under one roof';
+ALTER TABLE public.platform_settings ADD COLUMN IF NOT EXISTS hero_btn_ar TEXT DEFAULT 'اكتشفي المتاجر';
+ALTER TABLE public.platform_settings ADD COLUMN IF NOT EXISTS hero_btn_en TEXT DEFAULT 'EXPLORE BOUTIQUES';
+ALTER TABLE public.platform_settings ADD COLUMN IF NOT EXISTS wheel_prizes JSONB DEFAULT '[]'::jsonb;
 
 -- ==============================================================================
 -- 12. ROW LEVEL SECURITY (RLS) POLICIES - حماية وتأمين البيانات
