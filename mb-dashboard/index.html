@@ -140,6 +140,10 @@
             <span class="material-symbols-outlined text-accent">auto_stories</span>
             <span>ستوريات وقصص المنصة</span>
         </button>
+        <button class="nav-btn" id="nav-settings" onclick="showSection('settings')">
+            <span class="material-symbols-outlined text-accent">settings</span>
+            <span>إعدادات وهوية المنصة</span>
+        </button>
     </nav>
 
     <!-- Footer -->
@@ -302,6 +306,59 @@
             </div>
         </div>
 
+        <!-- ===================== 7. SECTION: SETTINGS (إعدادات الهوية والتوصيل) ===================== -->
+        <div class="section" id="section-settings">
+            <div class="mb-8">
+                <h2 class="serif text-3xl font-bold text-primary">إعدادات وهوية المنصة</h2>
+                <p class="text-xs opacity-60 mt-1">التحكم في الشعار العام للمنصة، رقم الواتساب المعتمد، حساب الإنستغرام، وتكلفة التوصيل.</p>
+            </div>
+
+            <div class="card p-6 md:p-8 max-w-2xl bg-white">
+                <form id="platform-settings-form" onsubmit="savePlatformSettings(event)" class="space-y-6 text-xs">
+                    <!-- Logo Section -->
+                    <div class="p-5 bg-primary/5 rounded-2xl border border-primary/10">
+                        <label class="font-bold block mb-2 text-sm text-primary">شعار المنصة الرسمي (Platform Logo)</label>
+                        <div class="flex items-center gap-5">
+                            <div class="w-20 h-20 rounded-full border-2 border-accent overflow-hidden shadow-md bg-white flex items-center justify-center shrink-0">
+                                <img id="settings-logo-preview" src="../images/logo.png" class="w-full h-full object-cover">
+                            </div>
+                            <div class="flex-1">
+                                <label class="text-[11px] opacity-70 block mb-1">رابط صورة الشعار (URL أو مسار نسبي)</label>
+                                <input type="text" id="settings-logo-url" class="input-field text-left" dir="ltr" placeholder="images/logo.png" oninput="document.getElementById('settings-logo-preview').src = this.value || '../images/logo.png'">
+                                <p class="text-[10px] text-primary/50 mt-1">يظهر هذا الشعار في الواجهة العلوية، شاشة الدخول، وزر الستوريات.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Contact Info -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="font-bold block mb-1">رقم واتساب المنصة الرئيسي للطلبات</label>
+                            <input type="text" id="settings-whatsapp" class="input-field text-left" dir="ltr" placeholder="9647835544744" required>
+                        </div>
+                        <div>
+                            <label class="font-bold block mb-1">حساب إنستغرام المنصة</label>
+                            <input type="text" id="settings-instagram" class="input-field text-left" dir="ltr" placeholder="@noon.boutique">
+                        </div>
+                    </div>
+
+                    <!-- Delivery Cost -->
+                    <div class="p-4 bg-[#fafaf5] rounded-xl border border-black/5">
+                        <label class="font-bold block mb-1">أجور التوصيل الافتراضية للطلبات (د.ع)</label>
+                        <input type="number" id="settings-delivery-fee" class="input-field text-left" dir="ltr" placeholder="5000" min="0" step="500" required>
+                        <p class="text-[10px] text-primary/50 mt-1">تُضاف تلقائياً في سلة التسوق عند إرسال الطلب عبر واتساب.</p>
+                    </div>
+
+                    <div class="pt-2">
+                        <button type="submit" class="btn-gold w-full py-3.5 rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg flex items-center justify-center gap-2">
+                            <span class="material-symbols-outlined text-sm">save</span>
+                            <span>حفظ إعدادات الهوية والمنصة</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
     </div>
 </main>
 
@@ -317,7 +374,10 @@
             
             <div class="grid grid-cols-2 gap-3">
                 <div>
-                    <label class="font-bold block mb-1">اسم المتجر بالعربي *</label>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="font-bold block">اسم المتجر بالعربي *</label>
+                        <button type="button" onclick="autoTranslateStore()" class="text-[10px] text-accent font-bold hover:underline flex items-center gap-0.5">✨ ترجمة تلقائية</button>
+                    </div>
                     <input type="text" id="store-name-ar" class="input-field" placeholder="مثال: لوميير نون" required>
                 </div>
                 <div>
@@ -398,7 +458,10 @@
 
             <div class="grid grid-cols-2 gap-3">
                 <div>
-                    <label class="font-bold block mb-1">اسم المنتج بالعربي *</label>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="font-bold block">اسم المنتج بالعربي *</label>
+                        <button type="button" onclick="autoTranslateProduct()" class="text-[10px] text-accent font-bold hover:underline flex items-center gap-0.5">✨ ترجمة تلقائية</button>
+                    </div>
                     <input type="text" id="product-name-ar" class="input-field" required>
                 </div>
                 <div>

@@ -24,7 +24,18 @@
 
 /* ═══════ GLASSMORPHISM ═══════ */
 .glass-header {
-  @apply bg-cream/70 backdrop-blur-xl border-b border-deep-green/5;
+  background: rgba(27, 46, 29, 0.88);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid rgba(212, 175, 55, 0.35);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  color: #FCFAE8;
+}
+.glass-header button {
+  color: #FCFAE8;
+}
+.glass-header button:hover {
+  color: #D4AF37;
 }
 
 /* ═══════ SCROLLBAR ═══════ */
@@ -496,4 +507,112 @@
 }
 .slot-lever-container.pulled .slot-lever-ball {
   transform: translateY(28px);
+}
+
+/* ═══════ DYNAMIC PRODUCT SCROLL FOCUS ═══════ */
+.focus-grid-item {
+  position: relative;
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.45s ease, border-color 0.4s ease;
+  will-change: transform;
+}
+.focus-grid-item img {
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.focus-grid-item .product-info {
+  position: absolute;
+  inset-x: 0;
+  bottom: 0;
+  padding: 12px 10px 10px;
+  background: linear-gradient(to top, rgba(15, 26, 17, 0.95) 0%, rgba(15, 26, 17, 0.7) 60%, transparent 100%);
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+/* When card is centered in viewport or hovered */
+.focus-grid-item.in-focus,
+.focus-grid-item:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 14px 35px -8px rgba(212, 175, 55, 0.35);
+  border: 1px solid rgba(212, 175, 55, 0.5);
+  z-index: 10;
+}
+.focus-grid-item.in-focus img,
+.focus-grid-item:hover img {
+  transform: scale(1.06);
+}
+.focus-grid-item.in-focus .product-info,
+.focus-grid-item:hover .product-info {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ═══════ CIRCULAR FORTUNE WHEEL ═══════ */
+.wheel-container-wrapper {
+  position: relative;
+  width: 320px;
+  max-width: 88vw;
+  height: 320px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.wheel-outer-rim {
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffe285 0%, #D4AF37 50%, #7d5e0a 100%);
+  box-shadow: 0 0 35px rgba(212, 175, 55, 0.5), inset 0 0 15px rgba(0,0,0,0.4);
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.wheel-pointer {
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 30px;
+  height: 38px;
+  z-index: 30;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5));
+}
+.wheel-center-pin {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #fff1a8 0%, #D4AF37 50%, #5e4607 100%);
+  border: 3px solid #FCFAE8;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.4), inset 0 2px 4px rgba(255,255,255,0.8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 25;
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.wheel-center-pin:active {
+  transform: translate(-50%, -50%) scale(0.92);
+}
+
+/* ═══════ SUPPRESS NETLIFY BADGE / DRAWER ═══════ */
+[data-netlify-deploy-id],
+#netlify-identity-widget,
+iframe[src*="netlify"],
+div[class*="netlify-feedback"],
+div[id*="netlify-drawer"],
+.netlify-badge,
+.netlify-feedback-drawer,
+[class*="netlify-"] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
 }

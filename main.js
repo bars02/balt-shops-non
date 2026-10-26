@@ -323,7 +323,7 @@ function renderStoreProducts(store) {
 
     return `
       <div class="focus-grid-item group relative cursor-pointer aspect-[3/4] overflow-hidden rounded-xl bg-white shadow-sm" onclick="viewProduct(${Number(p.id)})" data-product-id="${Number(p.id)}">
-        <img src="${sanitizeHtml(p.image)}" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" onerror="this.src='images/hero_noon.jpg'">
+        <img src="${sanitizeHtml(p.image)}" loading="lazy" class="w-full h-full object-cover transition-transform duration-700" onerror="this.src='images/hero_noon.jpg'">
         <button class="fav-btn absolute top-2 right-2 z-10 ${isFav ? 'is-fav' : ''}" onclick="event.stopPropagation(); toggleFavById(${Number(p.id)})">
           <span class="material-symbols-outlined">favorite</span>
         </button>
@@ -337,6 +337,28 @@ function renderStoreProducts(store) {
       </div>
     `;
   }).join('');
+
+  initCenterFocusObserver();
+}
+
+// --- Center-Focus Scroll Observer for Luxury Feed ---
+function initCenterFocusObserver() {
+  if (!('IntersectionObserver' in window)) return;
+  if (window._focusObserver) window._focusObserver.disconnect();
+
+  window._focusObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      entry.target.classList.toggle('in-focus', entry.isIntersecting);
+    });
+  }, {
+    root: null,
+    rootMargin: '-25% 0px -25% 0px',
+    threshold: 0.15
+  });
+
+  document.querySelectorAll('.focus-grid-item').forEach(el => {
+    window._focusObserver.observe(el);
+  });
 }
 
 // --- Screen 3: Product Detail ---
@@ -411,6 +433,7 @@ window.viewProduct = (id) => {
     `;
   }
 
+  renderProductReviews(id);
   navigate('product');
 };
 
@@ -463,7 +486,7 @@ window.addToBag = () => {
 
 window.updateCartUI = () => {
   const count = document.getElementById('cart-count');
-  if (count) count.innerText = state.cart.length;
+  if (count) count.innerText = state.cart.reduce((s, i) => s + (Number(i.quantity) || 1), 0);
 
   const container = document.getElementById('cart-container');
   if (!container) return;
@@ -481,32 +504,81 @@ window.updateCartUI = () => {
     `;
     const sub = document.getElementById('bag-subtotal-summary');
     const tot = document.getElementById('bag-total-summary');
+    const ship = document.getElementById('shipping-cost-summary');
     if (sub) sub.innerText = '0';
     if (tot) tot.innerText = '0';
+    if (ship) ship.innerText = '0';
     return;
   }
 
-  container.innerHTML = state.cart.map(item => `
-    <div class="p-4 rounded-2xl bg-white border border-primary/5 shadow-sm flex gap-3 relative">
-      <img src="${sanitizeHtml(item.image)}" class="w-[70px] h-[85px] object-cover rounded-xl border border-primary/5" onerror="this.src='images/hero_noon.jpg'">
-      <div class="flex-1 min-w-0">
-        <span class="inline-block bg-accent/20 text-primary text-[8px] font-bold px-2 py-0.5 rounded-full mb-1">
-          ${sanitizeHtml(lang === 'en' ? item.storeNameEn : item.storeNameAr)}
-        </span>
-        <h4 class="font-serif text-sm truncate font-semibold text-primary">${sanitizeHtml(lang === 'en' ? item.nameEn : item.nameAr)}</h4>
-        <p class="text-[10px] text-primary/60 mt-0.5">${sanitizeHtml(item.selectedSize)} | ${lang === 'en' ? 'Qty' : 'الكمية'}: ${Number(item.quantity)}</p>
-        <p class="text-xs font-bold text-accent mt-1">${sanitizeHtml(lang === 'en' ? item.currencyEn : item.currencyAr)}${(Number(item.price) * Number(item.quantity)).toLocaleString()}</p>
+  container.innerHTML = state.cart.map(item => {
+    const itemSubtotal = (Number(item.price) || 0) * (Number(item.quantity) || 1);
+    const currency = sanitizeHtml(lang === 'en' ? (item.currencyEn || 'IQD ') : (item.currencyAr || 'د.ع '));
+    return `
+      <div class="p-4 rounded-2xl bg-white border border-primary/5 shadow-sm flex gap-3 relative items-center">
+        <img src="${sanitizeHtml(item.image)}" class="w-[70px] h-[85px] object-cover rounded-xl border border-primary/5 cursor-pointer hover:opacity-90 transition-opacity" onclick="viewProduct(${Number(item.id)})" onerror="this.src='images/hero_noon.jpg'">
+        <div class="flex-1 min-w-0">
+          <span class="inline-block bg-accent/20 text-primary text-[8px] font-bold px-2 py-0.5 rounded-full mb-1">
+            ${sanitizeHtml(lang === 'en' ? item.storeNameEn : item.storeNameAr)}
+          </span>
+          <h4 class="font-serif text-sm truncate font-semibold text-primary cursor-pointer hover:text-accent transition-colors" onclick="viewProduct(${Number(item.id)})">${sanitizeHtml(lang === 'en' ? item.nameEn : item.nameAr)}</h4>
+          <p class="text-[10px] text-primary/60 mt-0.5">${sanitizeHtml(item.selectedSize)} | ${Number(item.price).toLocaleString()} ${currency}</p>
+          
+          <!-- Quantity Controls -->
+          <div class="flex items-center justify-between mt-2">
+            <div class="flex items-center gap-2 bg-primary/5 px-2 py-1 rounded-lg border border-primary/10">
+              <button onclick="decreaseCartQty(${item.cartId})" class="w-5 h-5 rounded flex items-center justify-center text-primary font-bold hover:bg-white text-xs transition-colors">−</button>
+              <span class="font-mono text-xs font-bold text-primary px-1.5">${Number(item.quantity) || 1}</span>
+              <button onclick="increaseCartQty(${item.cartId})" class="w-5 h-5 rounded flex items-center justify-center text-primary font-bold hover:bg-white text-xs transition-colors">+</button>
+            </div>
+            <p class="text-xs font-bold text-accent font-sans">${currency}${itemSubtotal.toLocaleString()}</p>
+          </div>
+        </div>
+        <button onclick="removeFromCart(${item.cartId})" class="material-symbols-outlined text-base text-primary/30 hover:text-red-500 self-start p-1 transition-colors" title="${lang === 'en' ? 'Remove' : 'حذف'}">close</button>
       </div>
-      <button onclick="removeFromCart(${item.cartId})" class="material-symbols-outlined text-base text-primary/30 hover:text-red-500 self-start p-1">close</button>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 
-  const subtotal = state.cart.reduce((s, i) => s + (Number(i.price) * Number(i.quantity)), 0);
+  const subtotal = state.cart.reduce((s, i) => s + ((Number(i.price) || 0) * (Number(i.quantity) || 1)), 0);
+  const deliveryFee = (state.platformSettings && state.platformSettings.deliveryFee !== undefined)
+    ? Number(state.platformSettings.deliveryFee)
+    : 5000;
+  const grandTotal = subtotal + deliveryFee;
+
+  const currency = lang === 'en' ? 'IQD ' : 'د.ع ';
   const sub = document.getElementById('bag-subtotal-summary');
   const tot = document.getElementById('bag-total-summary');
-  const currency = lang === 'en' ? 'IQD ' : 'د.ع ';
+  const ship = document.getElementById('shipping-cost-summary');
+
   if (sub) sub.innerText = `${currency}${subtotal.toLocaleString()}`;
-  if (tot) tot.innerText = `${currency}${subtotal.toLocaleString()}`;
+  if (ship) {
+    ship.innerText = deliveryFee === 0 
+      ? (lang === 'en' ? 'Free Delivery' : 'توصيل مجاني')
+      : `${currency}${deliveryFee.toLocaleString()}`;
+  }
+  if (tot) tot.innerText = `${currency}${grandTotal.toLocaleString()}`;
+};
+
+window.increaseCartQty = (cartId) => {
+  const item = state.cart.find(i => i.cartId === cartId);
+  if (item) {
+    item.quantity = (Number(item.quantity) || 1) + 1;
+    saveCart();
+    updateCartUI();
+  }
+};
+
+window.decreaseCartQty = (cartId) => {
+  const item = state.cart.find(i => i.cartId === cartId);
+  if (item) {
+    if ((Number(item.quantity) || 1) > 1) {
+      item.quantity -= 1;
+    } else {
+      state.cart = state.cart.filter(i => i.cartId !== cartId);
+    }
+    saveCart();
+    updateCartUI();
+  }
 };
 
 window.removeFromCart = (cartId) => {
@@ -521,14 +593,18 @@ window.orderWhatsApp = async () => {
     return;
   }
 
-  // Group by store
+  const lang = i18n.currentLang;
+  const isEn = lang === 'en';
+  const baseUrl = window.location.origin + window.location.pathname.replace(/\/+$/, '');
+
+  // Group items by boutique store
   const storesInCart = {};
   state.cart.forEach(item => {
     if (!storesInCart[item.storeId]) {
       storesInCart[item.storeId] = {
         nameAr: item.storeNameAr,
         nameEn: item.storeNameEn,
-        whatsapp: item.storeWhatsapp || '9647835544744',
+        whatsapp: item.storeWhatsapp || state.platformSettings?.whatsapp || '9647835544744',
         items: []
       };
     }
@@ -537,234 +613,659 @@ window.orderWhatsApp = async () => {
 
   const storeKeys = Object.keys(storesInCart);
   const targetStore = storesInCart[storeKeys[0]];
+  const deliveryFee = (state.platformSettings && state.platformSettings.deliveryFee !== undefined)
+    ? Number(state.platformSettings.deliveryFee)
+    : 5000;
+  const subtotal = state.cart.reduce((s, i) => s + ((Number(i.price) || 0) * (Number(i.quantity) || 1)), 0);
+  const grandTotal = subtotal + deliveryFee;
+  const currencyStr = isEn ? 'IQD' : 'د.ع';
 
-  let msg = `🛍️ *طلب جديد عبر منصة نون | NOON Platform*\n`;
-  msg += `─────────────────────────\n`;
-
-  storeKeys.forEach(sId => {
-    const s = storesInCart[sId];
-    msg += `📍 *المتجر: ${s.nameAr}*\n`;
-    s.items.forEach(i => {
-      msg += `▪ ${i.nameAr} | القياس: ${i.selectedSize} | العدد: ${i.quantity} | السعر: ${Number(i.price).toLocaleString()} د.ع\n`;
+  let msg = '';
+  if (isEn) {
+    msg += `🛍️ *NEW ORDER — NOON LUXURY PLATFORM*\n`;
+    msg += `─────────────────────────\n`;
+    storeKeys.forEach(sId => {
+      const s = storesInCart[sId];
+      msg += `📍 *Boutique: ${s.nameEn}*\n`;
+      s.items.forEach(i => {
+        const itemLink = `${baseUrl}/?product=${i.id}`;
+        msg += `▪ *${i.nameEn}*\n`;
+        msg += `   - Size: ${i.selectedSize} | Qty: ${i.quantity} | Price: ${Number(i.price).toLocaleString()} ${currencyStr}\n`;
+        msg += `   - Item Link: ${itemLink}\n`;
+      });
+      msg += `\n`;
     });
-    msg += `\n`;
-  });
+    msg += `─────────────────────────\n`;
+    msg += `💵 *Subtotal:* ${subtotal.toLocaleString()} ${currencyStr}\n`;
+    msg += `🚚 *Delivery Fee:* ${deliveryFee === 0 ? 'Free' : deliveryFee.toLocaleString() + ' ' + currencyStr}\n`;
+    msg += `💰 *Grand Total:* ${grandTotal.toLocaleString()} ${currencyStr}\n`;
+    msg += `👤 *Client:* ${state.user?.name || 'Direct Order'}\n`;
+    msg += `📝 *Note:* I will provide my phone number and send my delivery location shortly.\n`;
+  } else {
+    msg += `🛍️ *طلب شراء جديد — منصة نون للأزياء*\n`;
+    msg += `─────────────────────────\n`;
+    storeKeys.forEach(sId => {
+      const s = storesInCart[sId];
+      msg += `📍 *المتجر: ${s.nameAr}*\n`;
+      s.items.forEach(i => {
+        const itemLink = `${baseUrl}/?product=${i.id}`;
+        msg += `▪ *${i.nameAr}*\n`;
+        msg += `   - القياس: ${i.selectedSize} | العدد: ${i.quantity} | السعر: ${Number(i.price).toLocaleString()} ${currencyStr}\n`;
+        msg += `   - رابط القطعة: ${itemLink}\n`;
+      });
+      msg += `\n`;
+    });
+    msg += `─────────────────────────\n`;
+    msg += `💵 *الإجمالي الفرعي:* ${subtotal.toLocaleString()} ${currencyStr}\n`;
+    msg += `🚚 *أجور التوصيل:* ${deliveryFee === 0 ? 'مجاني' : deliveryFee.toLocaleString() + ' ' + currencyStr}\n`;
+    msg += `💰 *الإجمالي النهائي:* ${grandTotal.toLocaleString()} ${currencyStr}\n`;
+    msg += `👤 *العميلة:* ${state.user?.name || 'عميلة مباشرة من المنصة'}\n`;
+    msg += `📝 *ملاحظة:* سوف أقوم بإرفاق رقم هاتفي وإرسال موقعي (اللوكيشن) بأقرب وقت.\n`;
+  }
 
-  const subtotal = state.cart.reduce((s, i) => s + (Number(i.price) * Number(i.quantity)), 0);
-  msg += `─────────────────────────\n`;
-  msg += `💰 *الإجمالي الكلي: ${subtotal.toLocaleString()} د.ع*\n`;
-  msg += `👤 *العميلة:* ${state.user?.name || 'طلب مباشر من الموقع'}\n`;
+  // Persist order in background
+  try {
+    await db.createOrder({
+      storeId: storeKeys[0],
+      customerName: state.user?.name || (isEn ? 'Direct Client' : 'عميلة مباشرة'),
+      items: state.cart,
+      subtotal: subtotal,
+      deliveryFee: deliveryFee,
+      total: grandTotal
+    });
+  } catch(e) {
+    console.warn('Order background save note:', e);
+  }
 
-  // Persist order in background to DB / local
-  await db.createOrder({
-    storeId: storeKeys[0],
-    customerName: state.user?.name || 'عميلة مباشرة',
-    items: state.cart,
-    subtotal: subtotal,
-    total: subtotal
-  });
-
-  window.open(`https://wa.me/${encodeURIComponent(targetStore.whatsapp)}?text=${encodeURIComponent(msg)}`, '_blank');
+  const targetWaNumber = targetStore.whatsapp.replace(/[^0-9]/g, '');
+  window.open(`https://wa.me/${encodeURIComponent(targetWaNumber)}?text=${encodeURIComponent(msg)}`, '_blank');
 };
 
-// --- Screen 5: Daily Game (Slot Machine) ---
+// --- Screen 5: Circular Fortune Wheel (عجلة الحظ الدائرية الفاخرة) ---
+const fortuneWheelPrizes = [
+  { id: 1, nameAr: 'خصم 20% على إجمالي طلبكِ', nameEn: '20% OFF Entire Order', code: 'NOON-20VIP', color: '#1B2E1D', textColor: '#D4AF37', icon: '👑', weight: 25 },
+  { id: 2, nameAr: 'توصيل مجاني فوري لطلبكِ', nameEn: 'Free Delivery', code: 'FREE-DELIVERY', color: '#D4AF37', textColor: '#1B2E1D', icon: '🚚', weight: 30 },
+  { id: 3, nameAr: 'قسيمة بقيمة 15,000 د.ع', nameEn: '15,000 IQD Voucher', code: 'NOON-15K', color: '#142716', textColor: '#FCFAE8', icon: '💎', weight: 15 },
+  { id: 4, nameAr: 'خصم 10% إضافي فوري', nameEn: '10% Extra Discount', code: 'EXTRA-10', color: '#C9A02C', textColor: '#1B2E1D', icon: '✨', weight: 35 },
+  { id: 5, nameAr: 'هدية وشاح حريري فاخر', nameEn: 'Silk Scarf Gift', code: 'SILK-GIFT', color: '#1B2E1D', textColor: '#D4AF37', icon: '🎁', weight: 10 },
+  { id: 6, nameAr: 'خصم 30% للمشتريات الكبرى', nameEn: '30% Grand Discount', code: 'NOON-30VIP', color: '#D4AF37', textColor: '#1B2E1D', icon: '⭐', weight: 8 }
+];
+
+let wheelCurrentAngle = 0;
+let wheelAnimationId = null;
+
+function drawFortuneWheel(rotationAngle = 0) {
+  const canvas = document.getElementById('fortune-wheel-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const width = canvas.width;
+  const height = canvas.height;
+  const cx = width / 2;
+  const cy = height / 2;
+  const radius = cx - 10;
+  const numSlices = fortuneWheelPrizes.length;
+  const arc = (2 * Math.PI) / numSlices;
+  const lang = i18n.currentLang;
+
+  ctx.clearRect(0, 0, width, height);
+
+  // Outer Decorative Ring
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius + 6, 0, 2 * Math.PI);
+  ctx.fillStyle = '#1B2E1D';
+  ctx.fill();
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = '#D4AF37';
+  ctx.stroke();
+  ctx.restore();
+
+  // Slices
+  fortuneWheelPrizes.forEach((prize, i) => {
+    const angle = rotationAngle + (i * arc);
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, radius, angle, angle + arc);
+    ctx.closePath();
+    ctx.fillStyle = prize.color;
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(212, 175, 55, 0.5)';
+    ctx.stroke();
+
+    // Icon & Text along slice radial bisector
+    const midAngle = angle + (arc / 2);
+    ctx.translate(cx, cy);
+    ctx.rotate(midAngle);
+
+    // Draw Icon
+    ctx.font = 'bold 20px "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(prize.icon, radius * 0.76, 0);
+
+    // Draw Short Label
+    ctx.font = 'bold 9px "IBM Plex Sans Arabic", "Manrope", sans-serif';
+    ctx.fillStyle = prize.textColor;
+    const label = lang === 'en' ? prize.nameEn : prize.nameAr;
+    const shortLabel = label.length > 20 ? label.slice(0, 18) + '..' : label;
+    ctx.fillText(shortLabel, radius * 0.44, 0);
+
+    ctx.restore();
+  });
+
+  // Center Stud / Rim
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, 32, 0, 2 * Math.PI);
+  const grad = ctx.createRadialGradient(cx, cy, 5, cx, cy, 32);
+  grad.addColorStop(0, '#FFE68A');
+  grad.addColorStop(0.5, '#D4AF37');
+  grad.addColorStop(1, '#8C6D15');
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#FFF';
+  ctx.stroke();
+  ctx.restore();
+}
+
+window.initFortuneWheel = () => {
+  drawFortuneWheel(wheelCurrentAngle);
+};
+
 window.updateGameUI = () => {
   const attemptsBadge = document.getElementById('game-attempts-badge');
   const attempts = getDailyAttemptsLeft();
   if (attemptsBadge) attemptsBadge.innerText = attempts;
 
   const spinBtn = document.getElementById('spin-btn');
-  const spinBtnText = document.getElementById('spin-btn-text');
+  const spinActionText = document.getElementById('spin-action-text');
 
   if (attempts <= 0) {
     if (spinBtn) spinBtn.classList.add('opacity-50');
-    if (spinBtnText) spinBtnText.innerText = i18n.currentLang === 'en' ? 'Attempt Used for Today' : 'استنفدتِ محاولة اليوم';
+    if (spinActionText) spinActionText.innerText = i18n.currentLang === 'en' ? 'Attempt Used for Today' : 'استنفدتِ محاولة اليوم';
   } else {
     if (spinBtn) spinBtn.classList.remove('opacity-50');
-    if (spinBtnText) spinBtnText.innerText = i18n.currentLang === 'en' ? 'PULL LEVER' : 'اسحب العتلة';
+    if (spinActionText) spinActionText.innerText = i18n.currentLang === 'en' ? 'Spin Wheel Now' : 'تدوير العجلة الآن';
   }
+
+  drawFortuneWheel(wheelCurrentAngle);
 };
 
-window.pullSlotLever = () => {
+window.spinFortuneWheel = () => {
   if (state.isSpinning) return;
 
-  if (!state.user) {
-    state.user = {
-      id: 'guest_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
-      name: i18n.currentLang === 'en' ? 'NOON Guest' : 'زائرة نون الكريمة',
-      avatarMode: 'default',
-      photo: 'images/logo.png',
-      isGuest: true
-    };
-    saveUser();
-    if (typeof renderProfileUI === 'function') renderProfileUI();
+  // 1. Authentication Check: User MUST be signed in
+  if (!state.user || state.user.isGuest) {
+    showToast(i18n.currentLang === 'en' 
+      ? "Please sign in or create an account to spin the lucky wheel!" 
+      : "يُرجى تسجيل الدخول أو إنشاء حساب للاستفادة من عجلة الحظ!", "error");
+    navigate('profile');
+    return;
   }
 
+  // 2. Daily Limit Check: 1 attempt allowed per day
   const attemptsLeft = getDailyAttemptsLeft();
   if (attemptsLeft <= 0) {
-    showToast(i18n.currentLang === 'en' ? "You've used your daily attempt! Come back tomorrow" : "لقد استنفدتِ محاولتكِ لهذا اليوم، ننتظركِ غداً!", "error");
+    showToast(i18n.currentLang === 'en' 
+      ? "You've used your daily attempt! Come back tomorrow." 
+      : "لقد استنفدتِ محاولتكِ لهذا اليوم، ننتظركِ غداً!", "error");
     return;
   }
 
   state.isSpinning = true;
-  const lever = document.getElementById('slot-lever');
-  if (lever) lever.classList.add('pulled');
-  setTimeout(() => lever && lever.classList.remove('pulled'), 400);
 
-  const reels = [document.getElementById('reel-1'), document.getElementById('reel-2'), document.getElementById('reel-3')];
-  reels.forEach(r => r && r.classList.add('spinning'));
-
-  const prizes = state.gameConfig.prizes || [];
-  const totalWeight = prizes.reduce((s, p) => s + (p.weight || 10), 0);
-  let randomVal = Math.random() * (totalWeight || 1);
-  let selectedPrize = prizes[0] || { nameAr: 'قسيمة نون', nameEn: 'NOON Voucher', symbol: '💎', code: 'NOON20' };
-
-  for (const prize of prizes) {
-    if (randomVal < (prize.weight || 10)) {
-      selectedPrize = prize;
+  // 3. Select winning prize based on weights
+  const totalWeight = fortuneWheelPrizes.reduce((s, p) => s + (p.weight || 10), 0);
+  let randomVal = Math.random() * totalWeight;
+  let winnerIndex = 0;
+  for (let i = 0; i < fortuneWheelPrizes.length; i++) {
+    if (randomVal < (fortuneWheelPrizes[i].weight || 10)) {
+      winnerIndex = i;
       break;
     }
-    randomVal -= (prize.weight || 10);
+    randomVal -= (fortuneWheelPrizes[i].weight || 10);
   }
+  const selectedPrize = fortuneWheelPrizes[winnerIndex];
 
-  const symbols = ['💎', '👑', '✨', '⭐', '🌙', '👗'];
-  const spinInterval = setInterval(() => {
-    reels.forEach(r => {
-      if (r) r.querySelector('span').innerText = symbols[Math.floor(Math.random() * symbols.length)];
-    });
-  }, 100);
+  // 4. Calculate landing rotation angle:
+  // Pointer is at TOP: angle = -PI/2 (or 3*PI/2)
+  const numSlices = fortuneWheelPrizes.length;
+  const arc = (2 * Math.PI) / numSlices;
+  const targetSliceMid = (winnerIndex * arc) + (arc / 2);
+  // We want: (wheelCurrentAngle + totalSpin + targetSliceMid) % 2PI = 3*PI/2
+  const topPointerAngle = (3 * Math.PI) / 2;
+  let desiredFinalRemainder = (topPointerAngle - targetSliceMid) % (2 * Math.PI);
+  if (desiredFinalRemainder < 0) desiredFinalRemainder += (2 * Math.PI);
 
-  setTimeout(async () => {
-    clearInterval(spinInterval);
-    reels.forEach(r => r && r.classList.remove('spinning'));
+  const currentRemainder = wheelCurrentAngle % (2 * Math.PI);
+  let angleDifference = desiredFinalRemainder - currentRemainder;
+  if (angleDifference < 0) angleDifference += (2 * Math.PI);
 
-    const winSymbol = selectedPrize.symbol || '💎';
-    reels.forEach(r => {
-      if (r) r.querySelector('span').innerText = winSymbol;
-    });
+  const fullRotations = (5 + Math.floor(Math.random() * 3)) * (2 * Math.PI);
+  const totalDelta = fullRotations + angleDifference;
 
-    state.isSpinning = false;
-    recordDailyAttempt();
-    updateGameUI();
+  const duration = 4600;
+  const startTime = performance.now();
+  const startAngle = wheelCurrentAngle;
 
-    // Sync spin with cloud DB
-    await db.recordDailySpin(state.user.id, selectedPrize);
+  function animateWheel(now) {
+    const elapsed = now - startTime;
+    const progress = Math.min(1, elapsed / duration);
+    // Smooth Quintic Ease-Out curve
+    const ease = 1 - Math.pow(1 - progress, 5);
+    wheelCurrentAngle = startAngle + (totalDelta * ease);
+    drawFortuneWheel(wheelCurrentAngle);
 
-    // Show Won Prize Card
-    const resultCard = document.getElementById('game-result-card');
-    const titleEl = document.getElementById('prize-won-title');
-    const descEl = document.getElementById('prize-won-desc');
-    const codeEl = document.getElementById('prize-code-text');
+    if (progress < 1) {
+      wheelAnimationId = requestAnimationFrame(animateWheel);
+    } else {
+      wheelCurrentAngle = startAngle + totalDelta;
+      drawFortuneWheel(wheelCurrentAngle);
+      state.isSpinning = false;
+      recordDailyAttempt();
+      updateGameUI();
 
-    if (resultCard) {
-      resultCard.classList.remove('hidden');
-      const lang = i18n.currentLang;
-      if (titleEl) titleEl.innerText = selectedPrize.code ? (lang === 'en' ? '🎉 Congratulations!' : '🎉 مبارك! لقد ربحتِ') : (lang === 'en' ? 'Better luck tomorrow!' : 'حظاً أوفر غداً!');
-      if (descEl) descEl.innerText = lang === 'en' ? selectedPrize.nameEn : selectedPrize.nameAr;
-      if (codeEl) codeEl.innerText = selectedPrize.code || 'NOON-LUCK';
-
-      if (selectedPrize.code) {
-        state.wonPrizes.push({
-          prize: selectedPrize,
-          date: new Date().toLocaleDateString()
-        });
-        saveWonPrizes();
+      // Persist to user's prizes and DB
+      state.wonPrizes.push({
+        prize: selectedPrize,
+        date: new Date().toLocaleDateString(i18n.currentLang === 'en' ? 'en-US' : 'ar-IQ')
+      });
+      saveWonPrizes();
+      if (typeof db.recordDailySpin === 'function') {
+        db.recordDailySpin(state.user.id, selectedPrize).catch(() => {});
       }
-    }
 
-    showToast(i18n.currentLang === 'en' ? `You unlocked: ${selectedPrize.nameEn}` : `حصلتِ على: ${selectedPrize.nameAr}`);
-  }, 1800);
+      openWheelWinModal(selectedPrize);
+    }
+  }
+
+  wheelAnimationId = requestAnimationFrame(animateWheel);
 };
 
-window.copyPrizeCode = () => {
-  const code = document.getElementById('prize-code-text')?.innerText;
-  if (code) {
-    navigator.clipboard?.writeText(code);
-    showToast(i18n.currentLang === 'en' ? "Code copied to clipboard!" : "تم نسخ الكود بنجاح!");
+window.openWheelWinModal = (prize) => {
+  const modal = document.getElementById('wheel-win-modal');
+  if (!modal) return;
+  const lang = i18n.currentLang;
+  const titleEl = document.getElementById('wheel-win-prize-title');
+  const codeEl = document.getElementById('wheel-win-code');
+  const copyFeedback = document.getElementById('copy-feedback');
+
+  if (titleEl) titleEl.innerText = lang === 'en' ? prize.nameEn : prize.nameAr;
+  if (codeEl) codeEl.innerText = prize.code || 'NOON-LUCKY';
+  if (copyFeedback) copyFeedback.classList.add('hidden');
+
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+};
+
+window.closeWheelWinModal = () => {
+  const modal = document.getElementById('wheel-win-modal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
   }
 };
 
-// --- Screen 6: User Profile & Authentication ---
+window.copyVoucherCode = () => {
+  const code = document.getElementById('wheel-win-code')?.innerText;
+  if (code && navigator.clipboard) {
+    navigator.clipboard.writeText(code).then(() => {
+      const fb = document.getElementById('copy-feedback');
+      if (fb) fb.classList.remove('hidden');
+      showToast(i18n.currentLang === 'en' ? "Voucher code copied!" : "تم نسخ كود القسيمة بنجاح!");
+    });
+  }
+};
+
+window.claimWheelPrize = () => {
+  closeWheelWinModal();
+  navigate('hub');
+  showToast(i18n.currentLang === 'en' ? "Prize active! Happy shopping" : "تم تفعيل القسيمة! تسوقاً ممتعاً في متاجر نون");
+};
+
+// --- Screen 6: User Profile & Customer Authentication ---
+window.switchAuthTab = (tab) => {
+  const signinForm = document.getElementById('client-signin-form');
+  const signupForm = document.getElementById('client-signup-form');
+  const signinTab = document.getElementById('tab-btn-signin');
+  const signupTab = document.getElementById('tab-btn-signup');
+
+  if (tab === 'signin') {
+    if (signinForm) signinForm.classList.remove('hidden');
+    if (signupForm) signupForm.classList.add('hidden');
+    if (signinTab) {
+      signinTab.classList.add('text-accent', 'border-b-2', 'border-accent');
+      signinTab.classList.remove('text-primary/50');
+    }
+    if (signupTab) {
+      signupTab.classList.remove('text-accent', 'border-b-2', 'border-accent');
+      signupTab.classList.add('text-primary/50');
+    }
+  } else {
+    if (signinForm) signinForm.classList.add('hidden');
+    if (signupForm) signupForm.classList.remove('hidden');
+    if (signupTab) {
+      signupTab.classList.add('text-accent', 'border-b-2', 'border-accent');
+      signupTab.classList.remove('text-primary/50');
+    }
+    if (signinTab) {
+      signinTab.classList.remove('text-accent', 'border-b-2', 'border-accent');
+      signinTab.classList.add('text-primary/50');
+    }
+  }
+};
+
+window.customerSignIn = async (e) => {
+  e.preventDefault();
+  const emailInput = document.getElementById('client-signin-email');
+  const pwdInput = document.getElementById('client-signin-password');
+  const submitBtn = document.getElementById('client-signin-btn');
+
+  const email = emailInput?.value.trim();
+  const password = pwdInput?.value.trim();
+
+  if (!email || !password) {
+    showToast(i18n.currentLang === 'en' ? "Please fill in all fields" : "يرجى ملء جميع الحقول", "error");
+    return;
+  }
+
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerText = i18n.currentLang === 'en' ? "Signing in..." : "جارٍ تسجيل الدخول...";
+  }
+
+  const res = await db.clientSignIn(email, password);
+
+  if (submitBtn) {
+    submitBtn.disabled = false;
+    submitBtn.innerText = i18n.currentLang === 'en' ? "Sign In" : "تسجيل الدخول";
+  }
+
+  if (res.error) {
+    showToast(res.error, "error");
+    return;
+  }
+
+  state.user = res.user;
+  saveUser();
+  renderProfileUI();
+  updateGameUI();
+  showToast(i18n.currentLang === 'en' ? `Welcome back, ${state.user.name}!` : `أهلاً بكِ مجدداً، ${state.user.name}!`);
+};
+
+window.customerSignUp = async (e) => {
+  e.preventDefault();
+  const nameInput = document.getElementById('client-signup-name');
+  const emailInput = document.getElementById('client-signup-email');
+  const pwdInput = document.getElementById('client-signup-password');
+  const submitBtn = document.getElementById('client-signup-btn');
+
+  const name = nameInput?.value.trim();
+  const email = emailInput?.value.trim();
+  const password = pwdInput?.value.trim();
+
+  if (!name || !email || !password) {
+    showToast(i18n.currentLang === 'en' ? "Please fill in all fields" : "يرجى ملء جميع الحقول", "error");
+    return;
+  }
+
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerText = i18n.currentLang === 'en' ? "Creating account..." : "جارٍ إنشاء الحساب...";
+  }
+
+  const res = await db.clientSignUp(email, password, { display_name: name });
+
+  if (submitBtn) {
+    submitBtn.disabled = false;
+    submitBtn.innerText = i18n.currentLang === 'en' ? "Create Account Now" : "إنشاء الحساب الآن";
+  }
+
+  if (res.error) {
+    showToast(res.error, "error");
+    return;
+  }
+
+  state.user = res.user || { id: 'u_' + Date.now(), name, email, isGuest: false };
+  saveUser();
+  renderProfileUI();
+  updateGameUI();
+  showToast(i18n.currentLang === 'en' ? `Account created! Welcome, ${name}` : `تم إنشاء حسابكِ بنجاح! أهلاً بكِ في نون`);
+};
+
+window.customerSignOut = async () => {
+  await db.clientSignOut();
+  state.user = null;
+  localStorage.removeItem('noon_user');
+  renderProfileUI();
+  updateGameUI();
+  showToast(i18n.currentLang === 'en' ? "Signed out successfully" : "تم تسجيل الخروج بنجاح");
+};
+
+// --- Forgot Password OTP Workflow (إعادة تعيين كلمة المرور برمز 6 أرقام) ---
+window.openForgotPasswordModal = () => {
+  const modal = document.getElementById('forgot-password-modal');
+  if (modal) {
+    switchForgotStep(1);
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+};
+
+window.closeForgotPasswordModal = () => {
+  const modal = document.getElementById('forgot-password-modal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+};
+
+window.switchForgotStep = (step) => {
+  const step1 = document.getElementById('forgot-step-1');
+  const step2 = document.getElementById('forgot-step-2');
+  if (step === 1) {
+    if (step1) step1.classList.remove('hidden');
+    if (step2) step2.classList.add('hidden');
+  } else {
+    if (step1) step1.classList.add('hidden');
+    if (step2) step2.classList.remove('hidden');
+  }
+};
+
+window.requestResetOtp = async () => {
+  const emailInput = document.getElementById('forgot-email-input');
+  const btn = document.getElementById('btn-send-otp');
+  const email = emailInput?.value.trim();
+
+  if (!email) {
+    showToast(i18n.currentLang === 'en' ? "Please enter your email" : "يرجى كتابة البريد الإلكتروني", "error");
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = i18n.currentLang === 'en' ? "Sending code..." : "جارٍ إرسال الرمز...";
+  }
+
+  const res = await db.clientResetPasswordRequest(email);
+
+  if (btn) {
+    btn.disabled = false;
+    btn.innerText = i18n.currentLang === 'en' ? "Send Verification Code (OTP) ✉️" : "إرسال رمز التحقق (OTP) ✉️";
+  }
+
+  if (!res.success) {
+    showToast(res.error || (i18n.currentLang === 'en' ? "Failed to send code" : "تعذر إرسال الرمز"), "error");
+    return;
+  }
+
+  showToast(i18n.currentLang === 'en' ? "6-digit OTP code sent to your email!" : "تم إرسال رمز التحقق المكون من 6 أرقام إلى بريدكِ!");
+  switchForgotStep(2);
+};
+
+window.confirmResetPassword = async () => {
+  const emailInput = document.getElementById('forgot-email-input');
+  const otpInput = document.getElementById('forgot-otp-input');
+  const pwdInput = document.getElementById('forgot-new-password');
+  const btn = document.getElementById('btn-confirm-reset');
+
+  const email = emailInput?.value.trim();
+  const otp = otpInput?.value.trim();
+  const newPassword = pwdInput?.value.trim();
+
+  if (!otp || otp.length < 6) {
+    showToast(i18n.currentLang === 'en' ? "Please enter valid 6-digit OTP" : "يرجى إدخال رمز التحقق المكون من 6 أرقام", "error");
+    return;
+  }
+
+  if (!newPassword || newPassword.length < 6) {
+    showToast(i18n.currentLang === 'en' ? "Password must be at least 6 characters" : "يجب أن تكون كلمة المرور 6 خانات على الأقل", "error");
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = i18n.currentLang === 'en' ? "Updating password..." : "جارٍ حفظ كلمة المرور...";
+  }
+
+  const res = await db.clientVerifyResetOtp(email, otp, newPassword);
+
+  if (btn) {
+    btn.disabled = false;
+    btn.innerText = i18n.currentLang === 'en' ? "Save New Password" : "حفظ كلمة المرور الجديدة وتأكيد الدخول";
+  }
+
+  if (!res.success) {
+    showToast(res.error || (i18n.currentLang === 'en' ? "Invalid code or expired" : "رمز التحقق غير صحيح أو انتهت صلاحيته"), "error");
+    return;
+  }
+
+  showToast(i18n.currentLang === 'en' ? "Password reset successfully! Please sign in" : "تم تعيين كلمة المرور بنجاح! يمكنكِ تسجيل الدخول الآن");
+  closeForgotPasswordModal();
+  switchAuthTab('signin');
+};
+
 function renderProfileUI() {
+  const loggedInDiv = document.getElementById('profile-logged-in');
+  const loggedOutDiv = document.getElementById('profile-logged-out');
   const userNameEl = document.getElementById('profile-user-name');
+  const userEmailEl = document.getElementById('profile-user-email');
   const avatarImg = document.getElementById('profile-avatar-img');
-  const inputName = document.getElementById('input-display-name');
   const favCountEl = document.getElementById('profile-fav-count');
   const prizesCountEl = document.getElementById('profile-prizes-count');
-  const authContainer = document.getElementById('profile-auth-buttons');
+  const prizesListEl = document.getElementById('profile-won-prizes-list');
   const lang = i18n.currentLang;
 
   if (favCountEl) favCountEl.innerText = state.favorites.length;
   if (prizesCountEl) prizesCountEl.innerText = state.wonPrizes.length;
 
-  if (state.user) {
-    if (userNameEl) userNameEl.innerText = state.user.name;
-    if (inputName) inputName.value = state.user.name;
-    if (avatarImg) avatarImg.src = state.user.avatarMode === 'public' && state.user.photo ? state.user.photo : 'images/logo.png';
-    if (authContainer) {
-      authContainer.innerHTML = `
-        <button class="w-full py-3 bg-red-600/10 text-red-600 border border-red-600/20 rounded-xl text-xs font-bold hover:bg-red-600 hover:text-white transition-all" onclick="signOutUser()">
-          ${lang === 'en' ? 'Sign Out' : 'تسجيل الخروج'}
-        </button>
-      `;
+  if (state.user && !state.user.isGuest) {
+    if (loggedInDiv) loggedInDiv.classList.remove('hidden');
+    if (loggedOutDiv) loggedOutDiv.classList.add('hidden');
+
+    if (userNameEl) userNameEl.innerText = state.user.name || (lang === 'en' ? 'Valued Client' : 'عميلة نون الراقية');
+    if (userEmailEl) userEmailEl.innerText = state.user.email || '';
+    if (avatarImg) avatarImg.src = state.platformSettings?.logo || 'images/logo.png';
+
+    // Render won prizes in profile
+    if (prizesListEl) {
+      if (state.wonPrizes.length === 0) {
+        prizesListEl.innerHTML = `
+          <p class="text-xs text-primary/40 text-center py-4 font-light">
+            ${lang === 'en' ? 'No prizes unlocked yet. Try today\'s lucky wheel!' : 'لم تحصلي على جوائز بعد، جربي عجلة الحظ اليوم!'}
+          </p>
+        `;
+      } else {
+        prizesListEl.innerHTML = state.wonPrizes.map((pItem, idx) => {
+          const p = pItem.prize;
+          const pTitle = sanitizeHtml(lang === 'en' ? p.nameEn : p.nameAr);
+          const pCode = sanitizeHtml(p.code || 'NOON-VIP');
+          return `
+            <div class="p-3 rounded-xl bg-primary/5 border border-primary/10 flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <span class="text-xl">${p.icon || '🎁'}</span>
+                <div>
+                  <h5 class="font-serif text-xs font-bold text-primary">${pTitle}</h5>
+                  <span class="text-[9px] text-primary/50">${sanitizeHtml(pItem.date || '')}</span>
+                </div>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="font-mono text-[10px] font-bold bg-accent/20 text-primary px-2 py-1 rounded select-all">${pCode}</span>
+                <button onclick="navigator.clipboard.writeText('${pCode}'); showToast('${lang === 'en' ? 'Copied!' : 'تم النسخ!'}')" class="p-1 text-primary/40 hover:text-accent transition-colors" title="نسخ الكود">
+                  <span class="material-symbols-outlined text-sm">content_copy</span>
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
     }
   } else {
-    if (userNameEl) userNameEl.innerText = lang === 'en' ? 'Valued Guest' : 'زائر كريم';
-    if (inputName) inputName.value = '';
-    if (avatarImg) avatarImg.src = 'images/logo.png';
-    if (authContainer) {
-      authContainer.innerHTML = `
-        <button class="w-full py-3 bg-primary text-background rounded-xl text-xs font-bold hover:bg-accent hover:text-primary transition-all" onclick="quickRegisterGuest()">
-          ${lang === 'en' ? 'Save Profile / Register' : 'تسجيل حساب جديد'}
-        </button>
-      `;
-    }
+    if (loggedInDiv) loggedInDiv.classList.add('hidden');
+    if (loggedOutDiv) loggedOutDiv.classList.remove('hidden');
   }
 }
 
-window.quickRegisterGuest = () => {
-  const input = document.getElementById('input-display-name');
-  const rawName = input?.value.trim();
-  const name = rawName ? sanitizeHtml(rawName) : (i18n.currentLang === 'en' ? 'Lady NOON' : 'عميلة نون الراقية');
-  const avatarMode = document.querySelector('input[name="avatar_mode"]:checked')?.value || 'default';
+// --- Product Specific Reviews Engine (آراء وتقييمات العميلات لكل قطعة) ---
+async function renderProductReviews(productId) {
+  const container = document.getElementById('product-reviews-list');
+  if (!container) return;
+  const lang = i18n.currentLang;
 
-  state.user = {
-    id: 'user_' + Date.now(),
-    name: name,
-    avatarMode: avatarMode,
-    photo: 'images/logo.png'
-  };
-  saveUser();
-  renderProfileUI();
-  updateGameUI();
-  showToast(i18n.currentLang === 'en' ? `Welcome, ${name}!` : `أهلاً بكِ، ${name}!`);
-};
+  const reviews = await db.getReviews({ productId: productId });
 
-window.saveProfileSettings = () => {
-  const input = document.getElementById('input-display-name');
-  const name = input?.value.trim();
-  if (!name) {
-    showToast(i18n.currentLang === 'en' ? "Please enter a name" : "يرجى كتابة اسم العرض", "error");
+  if (!reviews || reviews.length === 0) {
+    container.innerHTML = `
+      <div class="p-4 bg-primary/5 rounded-xl text-center">
+        <p class="text-[11px] text-primary/60 font-light">
+          ${lang === 'en' ? 'No reviews yet for this piece. Be the first to share your thoughts!' : 'لا توجد تقييمات بعد لهذه القطعة، كوني أول من يشارك رأيه الراقي!'}
+        </p>
+      </div>
+    `;
     return;
   }
-  const avatarMode = document.querySelector('input[name="avatar_mode"]:checked')?.value || 'default';
 
-  if (!state.user) {
-    state.user = { id: 'user_' + Date.now() };
+  container.innerHTML = reviews.map(r => `
+    <div class="p-3 bg-white rounded-xl border border-primary/10 shadow-sm">
+      <div class="flex items-center justify-between mb-1">
+        <div class="flex items-center gap-1.5">
+          <span class="font-serif text-xs font-bold text-primary">${sanitizeHtml(r.authorName || (lang === 'en' ? 'NOON Client' : 'عميلة نون'))}</span>
+          <span class="text-[9px] text-accent">★★★★★</span>
+        </div>
+        <span class="text-[8px] text-primary/40 font-mono">${sanitizeHtml(r.createdAt || '')}</span>
+      </div>
+      <p class="text-xs text-primary/70 font-light leading-relaxed">${sanitizeHtml(r.content)}</p>
+    </div>
+  `).join('');
+}
+
+window.submitProductReview = async () => {
+  const textEl = document.getElementById('product-review-input');
+  const content = textEl?.value.trim();
+
+  if (!content) {
+    showToast(i18n.currentLang === 'en' ? "Please write your review" : "يرجى كتابة التقييم أولاً", "error");
+    return;
   }
-  state.user.name = sanitizeHtml(name);
-  state.user.avatarMode = avatarMode;
-  saveUser();
-  renderProfileUI();
-  showToast(i18n.currentLang === 'en' ? "Profile saved successfully" : "تم حفظ بيانات الحساب بنجاح");
-};
 
-window.signOutUser = () => {
-  state.user = null;
-  localStorage.removeItem('noon_user');
-  renderProfileUI();
-  updateGameUI();
-  showToast(i18n.currentLang === 'en' ? "Signed out" : "تم تسجيل الخروج");
+  const p = state.products.find(x => x.id === state.currentProductId);
+  const currentStore = state.stores.find(s => s.id === p?.storeId);
+  const authorName = state.user?.name || (i18n.currentLang === 'en' ? 'NOON Client' : 'عميلة نون');
+
+  await db.addReview({
+    productId: state.currentProductId,
+    storeId: p?.storeId || state.activeStoreId,
+    storeName: currentStore ? (i18n.currentLang === 'en' ? currentStore.nameEn : currentStore.nameAr) : 'منصة نون',
+    authorName: authorName,
+    content: content
+  });
+
+  if (textEl) textEl.value = '';
+  await renderProductReviews(state.currentProductId);
+  showToast(i18n.currentLang === 'en' ? "Thank you! Review published" : "شكراً لمشاركتكِ! تم نشر تقييمكِ بنجاح");
 };
 
 // --- Screen 7: Favorites ---
@@ -1105,11 +1606,19 @@ const boot = async () => {
     if (percentEl) percentEl.innerText = `${val}%`;
   };
 
-  setLoad(30);
+  setLoad(25);
 
   // 1. Load initial data through secure data layer
+  state.platformSettings = await db.getPlatformSettings();
+  if (state.platformSettings?.logo) {
+    document.querySelectorAll('#nav-logo-img, .splash-logo-img, #profile-avatar-img').forEach(img => {
+      img.src = state.platformSettings.logo;
+    });
+  }
+  setLoad(45);
+
   state.stores = await db.getStores();
-  setLoad(60);
+  setLoad(65);
 
   state.products = await db.getProducts();
   setLoad(85);
@@ -1123,8 +1632,18 @@ const boot = async () => {
   renderStoreSwitcher();
   updateCartUI();
   updateGameUI();
+  renderProfileUI();
+  if (typeof initFortuneWheel === 'function') initFortuneWheel();
 
-  // 3. Ultra-Smooth GSAP Motion Reveal Timeline
+  // 3. Deep link support: Check ?product=ID query parameter
+  const urlParams = new URLSearchParams(window.location.search);
+  const prodParam = urlParams.get('product');
+  if (prodParam) {
+    const pid = parseInt(prodParam);
+    if (pid) setTimeout(() => viewProduct(pid), 500);
+  }
+
+  // 4. Ultra-Smooth GSAP Motion Reveal Timeline
   if (window.gsap) {
     const tl = gsap.timeline({ delay: 0.2 });
     tl.to('.splash-logo-wrap', { scale: 1.08, filter: 'drop-shadow(0 0 35px #D4AF37)', duration: 0.6, ease: 'power2.out' })

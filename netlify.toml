@@ -2,6 +2,9 @@
   publish = "."
   command = "node build.js"
 
+[build.environment]
+  DISABLE_NETLIFY_DRAWER = "true"
+
 [[headers]]
   for = "/*"
   [headers.values]

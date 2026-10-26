@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS public.products (
 CREATE TABLE IF NOT EXISTS public.reviews (
     id BIGSERIAL PRIMARY KEY,
     store_id TEXT REFERENCES public.stores(id) ON DELETE SET NULL,
+    product_id BIGINT REFERENCES public.products(id) ON DELETE SET NULL,
     author_name TEXT NOT NULL,
     content TEXT NOT NULL,
     rating INT DEFAULT 5 CHECK (rating >= 1 AND rating <= 5),
@@ -138,8 +139,20 @@ CREATE TABLE IF NOT EXISTS public.stories (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 11. PLATFORM SETTINGS TABLE (إعدادات وهوية المنصة والتوصيل)
+CREATE TABLE IF NOT EXISTS public.platform_settings (
+    id INT PRIMARY KEY DEFAULT 1,
+    logo_url TEXT DEFAULT 'images/logo.png',
+    whatsapp TEXT DEFAULT '9647835544744',
+    instagram TEXT DEFAULT '@noon.boutique',
+    delivery_fee NUMERIC(12, 2) DEFAULT 5000,
+    currency_ar TEXT DEFAULT 'د.ع',
+    currency_en TEXT DEFAULT 'IQD',
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ==============================================================================
--- 11. ROW LEVEL SECURITY (RLS) POLICIES - حماية وتأمين البيانات
+-- 12. ROW LEVEL SECURITY (RLS) POLICIES - حماية وتأمين البيانات
 -- ==============================================================================
 ALTER TABLE public.stores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
@@ -150,6 +163,7 @@ ALTER TABLE public.game_prizes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.daily_spins ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.game_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.stories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.platform_settings ENABLE ROW LEVEL SECURITY;
 
 -- 10.1 STORES POLICIES
 DROP POLICY IF EXISTS "Public can view active stores" ON public.stores;
@@ -228,8 +242,19 @@ CREATE POLICY "Admins can manage stories" ON public.stories
     USING (TRUE)
     WITH CHECK (TRUE);
 
+-- 12.8 PLATFORM SETTINGS POLICIES
+DROP POLICY IF EXISTS "Public can view platform settings" ON public.platform_settings;
+CREATE POLICY "Public can view platform settings" ON public.platform_settings
+    FOR SELECT USING (TRUE);
+
+DROP POLICY IF EXISTS "Admins can manage platform settings" ON public.platform_settings;
+CREATE POLICY "Admins can manage platform settings" ON public.platform_settings
+    FOR ALL TO authenticated
+    USING (TRUE)
+    WITH CHECK (TRUE);
+
 -- ==============================================================================
--- 12. SEED DATA - البيانات التأسيسية للمنصة والمتاجر
+-- 13. SEED DATA - البيانات التأسيسية للمنصة والمتاجر
 -- ==============================================================================
 
 -- 11.1 المتاجر الثلاثة
@@ -491,4 +516,9 @@ VALUES
     'اكتشفي كاجوال نون',
     TRUE
 )
+ON CONFLICT (id) DO NOTHING;
+
+-- 13.8 إعدادات وهوية المنصة الافتراضية
+INSERT INTO public.platform_settings (id, logo_url, whatsapp, instagram, delivery_fee)
+VALUES (1, 'images/logo.png', '9647835544744', '@noon.boutique', 5000)
 ON CONFLICT (id) DO NOTHING;

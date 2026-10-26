@@ -190,6 +190,7 @@ window.showSection = (sec) => {
     if (sec === 'game') renderGameSection();
     if (sec === 'comments') renderCommentsSection();
     if (sec === 'stories') renderStoriesSection();
+    if (sec === 'settings') renderSettingsSection();
 };
 
 // ============================================================
@@ -785,12 +786,118 @@ window.deleteStory = async (id) => {
     showToast("تم حذف الستوري بنجاح");
 };
 
+// ============================================================
+// 7. PLATFORM IDENTITY & SETTINGS (إعدادات وهوية المنصة)
+// ============================================================
+let platformSettings = null;
+
+async function renderSettingsSection() {
+    platformSettings = await db.getPlatformSettings();
+    const logoInput = document.getElementById('settings-logo-url');
+    const logoPreview = document.getElementById('settings-logo-preview');
+    const waInput = document.getElementById('settings-whatsapp');
+    const igInput = document.getElementById('settings-instagram');
+    const feeInput = document.getElementById('settings-delivery-fee');
+
+    if (logoInput) logoInput.value = platformSettings.logo || 'images/logo.png';
+    if (logoPreview) logoPreview.src = platformSettings.logo ? (platformSettings.logo.startsWith('http') ? platformSettings.logo : '../' + platformSettings.logo) : '../images/logo.png';
+    if (waInput) waInput.value = platformSettings.whatsapp || '';
+    if (igInput) igInput.value = platformSettings.instagram || '';
+    if (feeInput) feeInput.value = platformSettings.deliveryFee || 5000;
+}
+
+window.savePlatformSettings = async (e) => {
+    e.preventDefault();
+    const logo = document.getElementById('settings-logo-url')?.value.trim() || 'images/logo.png';
+    const wa = document.getElementById('settings-whatsapp')?.value.trim() || '';
+    const ig = document.getElementById('settings-instagram')?.value.trim() || '';
+    const fee = Number(document.getElementById('settings-delivery-fee')?.value) || 5000;
+
+    platformSettings = await db.savePlatformSettings({
+        logo: logo,
+        whatsapp: wa,
+        instagram: ig,
+        deliveryFee: fee
+    });
+
+    showToast("تم حفظ إعدادات الهوية والتوصيل وتحديث الشعار بنجاح!");
+};
+
+// ============================================================
+// 8. AUTO-TRANSLATION ENGINE (ترجمة تلقائية للإنجليزية)
+// ============================================================
+async function translateArabicToEnglish(arabicText) {
+    if (!arabicText || !arabicText.trim()) return '';
+    const text = arabicText.trim();
+
+    try {
+        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=ar&tl=en&dt=t&q=${encodeURIComponent(text)}`;
+        const res = await fetch(url);
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data[0] && Array.isArray(data[0])) {
+                return data[0].map(item => item[0]).join('').trim();
+            }
+        }
+    } catch (e) {
+        console.warn('[Translate] Fallback to dictionary/secondary:', e);
+    }
+
+    try {
+        const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=ar|en`;
+        const res = await fetch(url);
+        if (res.ok) {
+            const data = await res.json();
+            if (data?.responseData?.translatedText) {
+                return data.responseData.translatedText.trim();
+            }
+        }
+    } catch (e) {}
+
+    return text;
+}
+
+window.autoTranslateStore = async () => {
+    const nameAr = document.getElementById('store-name-ar')?.value;
+    const badgeAr = document.getElementById('store-badge-ar')?.value;
+    if (!nameAr && !badgeAr) {
+        showToast("يرجى كتابة الاسم بالعربي أولاً", true);
+        return;
+    }
+    showToast("جاري الترجمة التلقائية...");
+    if (nameAr) {
+        const nameEn = await translateArabicToEnglish(nameAr);
+        const nameEnEl = document.getElementById('store-name-en');
+        if (nameEnEl) nameEnEl.value = nameEn;
+    }
+    if (badgeAr) {
+        const badgeEn = await translateArabicToEnglish(badgeAr);
+        const badgeEnEl = document.getElementById('store-badge-en');
+        if (badgeEnEl) badgeEnEl.value = badgeEn;
+    }
+    showToast("تمت الترجمة للإنجليزية بنجاح!");
+};
+
+window.autoTranslateProduct = async () => {
+    const nameAr = document.getElementById('product-name-ar')?.value;
+    if (!nameAr) {
+        showToast("يرجى كتابة اسم المنتج بالعربي أولاً", true);
+        return;
+    }
+    showToast("جاري الترجمة التلقائية للمنتج...");
+    const nameEn = await translateArabicToEnglish(nameAr);
+    const nameEnEl = document.getElementById('product-name-en');
+    if (nameEnEl) nameEnEl.value = nameEn;
+    showToast("تمت ترجمة اسم المنتج بنجاح!");
+};
+
 // --- Init Dashboard ---
 async function init() {
     stores = await db.getStores();
     products = await db.getProducts();
     gameConfig = await db.getGameConfig();
     stories = await db.getStories();
+    platformSettings = await db.getPlatformSettings();
     showSection('stores');
 }
 

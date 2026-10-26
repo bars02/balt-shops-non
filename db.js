@@ -247,11 +247,15 @@ export const db = {
   },
 
   // --- REVIEWS / COMMENTS ---
-  async getReviews(storeId = null) {
+  async getReviews(filter = null) {
+    const storeId = typeof filter === 'string' ? filter : filter?.storeId;
+    const productId = typeof filter === 'object' ? filter?.productId : null;
+
     if (this.isCloudReady()) {
       try {
         let q = supabaseClient.from('reviews').select('*').order('created_at', { ascending: false });
         if (storeId) q = q.eq('store_id', storeId);
+        if (productId) q = q.eq('product_id', productId);
         const { data, error } = await q;
         if (!error && data) {
           const storeNames = {
@@ -272,10 +276,11 @@ export const db = {
             return {
               id: r.id,
               storeId: r.store_id,
+              productId: r.product_id,
               storeName: storeNames[r.store_id] || 'منصة نون',
               authorName: sanitizeHtml(r.author_name),
               content: sanitizeHtml(r.content),
-              rating: r.rating,
+              rating: r.rating || 5,
               createdAt: formattedDate
             };
           });
@@ -285,20 +290,27 @@ export const db = {
       }
     }
     const local = localStorage.getItem('noon_reviews');
+    let reviewsList = [];
     if (local) {
-      try { return JSON.parse(local); } catch (e) {}
+      try { reviewsList = JSON.parse(local); } catch (e) {}
     }
-    return [
-      { id: 1, storeId: 'elegance', storeName: 'إليجانس نون', authorName: 'سارة العبيدي', content: 'الفستان الزمردي من متجر إليجانس فاق التوقعات، تطريز متقن جداً وتوصيل سريع.', createdAt: 'منذ يومين' },
-      { id: 2, storeId: 'royal', storeName: 'رويال نون', authorName: 'ريم الهاشمي', content: 'عباية الكريب الملكية من رويال نون تبارك الرحمن قمة في الفخامة والرزانة.', createdAt: 'منذ 4 أيام' },
-      { id: 3, storeId: 'casual', storeName: 'كاجوال نون', authorName: 'هدى جاسم', content: 'طقم اللِنين مريح جداً وأنيق للدوام، شكراً منصة نون على حسن الترتيب.', createdAt: 'منذ أسبوع' }
-    ];
+    if (!reviewsList || reviewsList.length === 0) {
+      reviewsList = [
+        { id: 1, storeId: 'elegance', storeName: 'إليجانس نون', authorName: 'سارة العبيدي', content: 'الفستان الزمردي من متجر إليجانس فاق التوقعات، تطريز متقن جداً وتوصيل سريع.', createdAt: 'منذ يومين' },
+        { id: 2, storeId: 'royal', storeName: 'رويال نون', authorName: 'ريم الهاشمي', content: 'عباية الكريب الملكية من رويال نون تبارك الرحمن قمة في الفخامة والرزانة.', createdAt: 'منذ 4 أيام' },
+        { id: 3, storeId: 'casual', storeName: 'كاجوال نون', authorName: 'هدى جاسم', content: 'طقم اللِنين مريح جداً وأنيق للدوام، شكراً منصة نون على حسن الترتيب.', createdAt: 'منذ أسبوع' }
+      ];
+    }
+    if (storeId) reviewsList = reviewsList.filter(r => r.storeId === storeId);
+    if (productId) reviewsList = reviewsList.filter(r => r.productId === productId);
+    return reviewsList;
   },
 
   async addReview(review) {
     const cleanReview = {
       id: Date.now(),
       storeId: review.storeId || 'elegance',
+      productId: review.productId || null,
       storeName: review.storeName || 'منصة نون',
       authorName: sanitizeHtml(review.authorName || 'عميلة نون'),
       content: sanitizeHtml(review.content || ''),
@@ -306,7 +318,7 @@ export const db = {
     };
 
     // Save local
-    const reviews = await this.getReviews();
+    const reviews = JSON.parse(localStorage.getItem('noon_reviews') || '[]');
     reviews.unshift(cleanReview);
     localStorage.setItem('noon_reviews', JSON.stringify(reviews));
 
@@ -315,6 +327,7 @@ export const db = {
       try {
         await supabaseClient.from('reviews').insert({
           store_id: cleanReview.storeId,
+          product_id: cleanReview.productId,
           author_name: cleanReview.authorName,
           content: cleanReview.content,
           rating: 5,
@@ -508,7 +521,157 @@ export const db = {
       }
     }
     return local;
+  },
+
+  // --- PLATFORM SETTINGS (الشعار والتوصيل والتواصل) ---
+  async getPlatformSettings() {
+    if (this.isCloudReady()) {
+      try {
+        const { data, error } = await supabaseClient.from('platform_settings').select('*').eq('id', 1).single();
+        if (!error && data) {
+          const s = {
+            logo: data.logo_url || 'images/logo.png',
+            whatsapp: data.whatsapp || '9647835544744',
+            instagram: data.instagram || '@noon.boutique',
+            deliveryFee: Number(data.delivery_fee) || 5000,
+            currencyAr: data.currency_ar || 'د.ع',
+            currencyEn: data.currency_en || 'IQD'
+          };
+          localStorage.setItem('noon_platform_settings', JSON.stringify(s));
+          return s;
+        }
+      } catch (e) {
+        console.warn('[NOON DB] Falling back to local platform settings:', e);
+      }
+    }
+    const local = localStorage.getItem('noon_platform_settings');
+    if (local) {
+      try { return JSON.parse(local); } catch(e) {}
+    }
+    return initialPlatformSettings;
+  },
+
+  async savePlatformSettings(settings) {
+    const current = await this.getPlatformSettings();
+    const updated = { ...current, ...settings };
+    localStorage.setItem('noon_platform_settings', JSON.stringify(updated));
+
+    if (this.isCloudReady()) {
+      try {
+        await supabaseClient.from('platform_settings').upsert({
+          id: 1,
+          logo_url: updated.logo,
+          whatsapp: updated.whatsapp,
+          instagram: updated.instagram,
+          delivery_fee: updated.deliveryFee,
+          currency_ar: updated.currencyAr,
+          currency_en: updated.currencyEn,
+          updated_at: new Date().toISOString()
+        });
+      } catch (e) {
+        console.warn('[NOON DB] Cloud platform settings sync skipped:', e);
+      }
+    }
+    return updated;
+  },
+
+  // --- CLIENT AUTHENTICATION ---
+  async clientSignUp(email, password, displayName) {
+    if (!this.isCloudReady()) {
+      const mockUser = { id: 'u_' + Date.now(), email, name: displayName || email.split('@')[0], isGuest: false };
+      localStorage.setItem('noon_user', JSON.stringify(mockUser));
+      return { user: mockUser, error: null };
+    }
+    try {
+      const { data, error } = await supabaseClient.auth.signUp({
+        email,
+        password,
+        options: { data: { display_name: displayName } }
+      });
+      if (error) return { user: null, error: error.message };
+      const user = {
+        id: data.user.id,
+        email: data.user.email,
+        name: displayName || data.user.user_metadata?.display_name || email.split('@')[0],
+        isGuest: false
+      };
+      localStorage.setItem('noon_user', JSON.stringify(user));
+      return { user, error: null };
+    } catch (err) {
+      return { user: null, error: err.message };
+    }
+  },
+
+  async clientSignIn(email, password) {
+    if (!this.isCloudReady()) {
+      const mockUser = { id: 'u_' + Date.now(), email, name: email.split('@')[0], isGuest: false };
+      localStorage.setItem('noon_user', JSON.stringify(mockUser));
+      return { user: mockUser, error: null };
+    }
+    try {
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) return { user: null, error: error.message };
+      const user = {
+        id: data.user.id,
+        email: data.user.email,
+        name: data.user.user_metadata?.display_name || email.split('@')[0],
+        isGuest: false
+      };
+      localStorage.setItem('noon_user', JSON.stringify(user));
+      return { user, error: null };
+    } catch (err) {
+      return { user: null, error: err.message };
+    }
+  },
+
+  async clientSignOut() {
+    if (this.isCloudReady()) {
+      try { await supabaseClient.auth.signOut(); } catch(e) {}
+    }
+    localStorage.removeItem('noon_user');
+  },
+
+  async clientResetPasswordRequest(email) {
+    if (!this.isCloudReady()) {
+      return { success: true, message: 'تم إرسال كود التحقق الافتراضي: 123456' };
+    }
+    try {
+      const { error } = await supabaseClient.auth.resetPasswordForEmail(email);
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  },
+
+  async clientVerifyResetOtp(email, token, newPassword) {
+    if (!this.isCloudReady()) {
+      return { success: true };
+    }
+    try {
+      const { error: otpError } = await supabaseClient.auth.verifyOtp({
+        email,
+        token,
+        type: 'recovery'
+      });
+      if (otpError) return { success: false, error: otpError.message };
+      const { error: pwdError } = await supabaseClient.auth.updateUser({ password: newPassword });
+      if (pwdError) return { success: false, error: pwdError.message };
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
   }
+};
+
+// Initial Platform Default Settings
+export const initialPlatformSettings = {
+  logo: 'images/logo.png',
+  whatsapp: '9647835544744',
+  instagram: '@noon.boutique',
+  deliveryFee: 5000,
+  currencyAr: 'د.ع',
+  currencyEn: 'IQD'
 };
 
 // Initial Luxury Fashion Stories
