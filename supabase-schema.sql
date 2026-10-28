@@ -172,6 +172,8 @@ ALTER TABLE public.platform_settings ADD COLUMN IF NOT EXISTS hero_desc_en TEXT 
 ALTER TABLE public.platform_settings ADD COLUMN IF NOT EXISTS hero_btn_ar TEXT DEFAULT 'اكتشفي المتاجر';
 ALTER TABLE public.platform_settings ADD COLUMN IF NOT EXISTS hero_btn_en TEXT DEFAULT 'EXPLORE BOUTIQUES';
 ALTER TABLE public.platform_settings ADD COLUMN IF NOT EXISTS wheel_prizes JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.platform_settings ADD COLUMN IF NOT EXISTS story_duration INT DEFAULT 6;
+ALTER TABLE public.platform_settings ADD COLUMN IF NOT EXISTS reviews_enabled BOOLEAN DEFAULT TRUE;
 
 -- ==============================================================================
 -- 12. ROW LEVEL SECURITY (RLS) POLICIES - حماية وتأمين البيانات

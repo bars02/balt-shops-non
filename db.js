@@ -14,10 +14,9 @@ export function sanitizeHtml(str) {
     '<': '&lt;',
     '>': '&gt;',
     '"': '&quot;',
-    "'": '&#x27;',
-    '/': '&#x2F;'
+    "'": '&#x27;'
   };
-  return String(str).replace(/[&<>"'/]/g, m => map[m]);
+  return String(str).replace(/[&<>"']/g, m => map[m]);
 }
 
 // Sanitize deep object strings
@@ -172,12 +171,13 @@ export const db = {
             currencyAr: p.currency_ar || 'د.ع ',
             currencyEn: p.currency_en || 'IQD ',
             image: p.image,
-            images: p.images || [p.image],
+            images: p.images || (p.image ? [p.image] : []),
             descriptionAr: p.description_ar,
             descriptionEn: p.description_en,
             heritageAr: p.heritage_ar,
             heritageEn: p.heritage_en,
             colors: p.colors || [],
+            variants: p.colors || [],
             sizes: Array.isArray(p.sizes) ? p.sizes : ['Standard'],
             available: p.is_available !== false
           }));
@@ -190,39 +190,52 @@ export const db = {
     }
     const local = localStorage.getItem('noon_products');
     if (local) {
-      try { return JSON.parse(local); } catch(e) {}
+      try {
+        let prods = JSON.parse(local);
+        if (storeId) prods = prods.filter(p => p.storeId === storeId);
+        return prods;
+      } catch(e) {}
     }
     return initialProducts;
   },
 
   async saveProduct(prod) {
+    const prodObj = {
+      ...prod,
+      id: Number(prod.id),
+      colors: prod.variants || prod.colors || [],
+      variants: prod.variants || prod.colors || [],
+      images: prod.images || (prod.image ? [prod.image] : [])
+    };
+
     const local = await this.getProducts();
-    const idx = local.findIndex(p => p.id === prod.id);
+    const idx = local.findIndex(p => p.id === prodObj.id);
     if (idx > -1) {
-      local[idx] = { ...local[idx], ...prod };
+      local[idx] = { ...local[idx], ...prodObj };
     } else {
-      local.unshift(prod);
+      local.unshift(prodObj);
     }
     localStorage.setItem('noon_products', JSON.stringify(local));
 
     if (this.isCloudReady()) {
       try {
         await supabaseClient.from('products').upsert({
-          id: prod.id,
-          store_id: prod.storeId,
-          category: prod.category,
-          name_ar: prod.nameAr,
-          name_en: prod.nameEn,
-          price: prod.price,
-          currency_ar: prod.currencyAr || 'د.ع ',
-          currency_en: prod.currencyEn || 'IQD ',
-          image: prod.image,
-          description_ar: prod.descriptionAr,
-          description_en: prod.descriptionEn,
-          heritage_ar: prod.heritageAr,
-          heritage_en: prod.heritageEn,
-          colors: prod.colors || [],
-          sizes: prod.sizes || ['Standard'],
+          id: prodObj.id,
+          store_id: prodObj.storeId,
+          category: prodObj.category,
+          name_ar: prodObj.nameAr,
+          name_en: prodObj.nameEn,
+          price: prodObj.price,
+          currency_ar: prodObj.currencyAr || 'د.ع ',
+          currency_en: prodObj.currencyEn || 'IQD ',
+          image: prodObj.image,
+          images: prodObj.images,
+          description_ar: prodObj.descriptionAr,
+          description_en: prodObj.descriptionEn,
+          heritage_ar: prodObj.heritageAr,
+          heritage_en: prodObj.heritageEn,
+          colors: prodObj.colors,
+          sizes: prodObj.sizes || ['Standard'],
           is_available: true
         });
       } catch (e) {
@@ -250,12 +263,14 @@ export const db = {
   async getReviews(filter = null) {
     const storeId = typeof filter === 'string' ? filter : filter?.storeId;
     const productId = typeof filter === 'object' ? filter?.productId : null;
+    const includeUnapproved = filter?.includeUnapproved === true;
 
     if (this.isCloudReady()) {
       try {
         let q = supabaseClient.from('reviews').select('*').order('created_at', { ascending: false });
         if (storeId) q = q.eq('store_id', storeId);
         if (productId) q = q.eq('product_id', productId);
+        if (!includeUnapproved) q = q.eq('is_approved', true);
         const { data, error } = await q;
         if (!error && data) {
           const storeNames = {
@@ -281,6 +296,7 @@ export const db = {
               authorName: sanitizeHtml(r.author_name),
               content: sanitizeHtml(r.content),
               rating: r.rating || 5,
+              approved: r.is_approved !== false,
               createdAt: formattedDate
             };
           });
@@ -294,12 +310,8 @@ export const db = {
     if (local) {
       try { reviewsList = JSON.parse(local); } catch (e) {}
     }
-    if (!reviewsList || reviewsList.length === 0) {
-      reviewsList = [
-        { id: 1, storeId: 'elegance', storeName: 'إليجانس نون', authorName: 'سارة العبيدي', content: 'الفستان الزمردي من متجر إليجانس فاق التوقعات، تطريز متقن جداً وتوصيل سريع.', createdAt: 'منذ يومين' },
-        { id: 2, storeId: 'royal', storeName: 'رويال نون', authorName: 'ريم الهاشمي', content: 'عباية الكريب الملكية من رويال نون تبارك الرحمن قمة في الفخامة والرزانة.', createdAt: 'منذ 4 أيام' },
-        { id: 3, storeId: 'casual', storeName: 'كاجوال نون', authorName: 'هدى جاسم', content: 'طقم اللِنين مريح جداً وأنيق للدوام، شكراً منصة نون على حسن الترتيب.', createdAt: 'منذ أسبوع' }
-      ];
+    if (!includeUnapproved) {
+      reviewsList = reviewsList.filter(r => r.approved !== false);
     }
     if (storeId) reviewsList = reviewsList.filter(r => r.storeId === storeId);
     if (productId) reviewsList = reviewsList.filter(r => r.productId === productId);
@@ -314,6 +326,8 @@ export const db = {
       storeName: review.storeName || 'منصة نون',
       authorName: sanitizeHtml(review.authorName || 'عميلة نون'),
       content: sanitizeHtml(review.content || ''),
+      rating: 5,
+      approved: true,
       createdAt: 'الآن'
     };
 
@@ -338,6 +352,21 @@ export const db = {
       }
     }
     return cleanReview;
+  },
+
+  async toggleReviewApproval(id, approved) {
+    if (this.isCloudReady()) {
+      try {
+        await supabaseClient.from('reviews').update({ is_approved: approved }).eq('id', id);
+      } catch(e) {}
+    }
+    let reviews = JSON.parse(localStorage.getItem('noon_reviews') || '[]');
+    const target = reviews.find(r => r.id === id);
+    if (target) {
+      target.approved = approved;
+      localStorage.setItem('noon_reviews', JSON.stringify(reviews));
+    }
+    return reviews;
   },
 
   async deleteReview(id) {
@@ -591,7 +620,9 @@ export const db = {
             heroDescEn: data.hero_desc_en || initialPlatformSettings.heroDescEn,
             heroBtnAr: data.hero_btn_ar || initialPlatformSettings.heroBtnAr,
             heroBtnEn: data.hero_btn_en || initialPlatformSettings.heroBtnEn,
-            wheelPrizes: data.wheel_prizes || null
+            wheelPrizes: data.wheel_prizes || null,
+            storyDuration: Number(data.story_duration) || 6,
+            reviewsEnabled: data.reviews_enabled !== false
           };
           localStorage.setItem('noon_platform_settings', JSON.stringify(s));
           return s;
@@ -632,6 +663,8 @@ export const db = {
           hero_btn_ar: updated.heroBtnAr,
           hero_btn_en: updated.heroBtnEn,
           wheel_prizes: updated.wheelPrizes || null,
+          story_duration: updated.storyDuration || 6,
+          reviews_enabled: updated.reviewsEnabled !== false,
           updated_at: new Date().toISOString()
         });
       } catch (e) {
@@ -746,7 +779,9 @@ export const initialPlatformSettings = {
   heroDescAr: 'تصفحي أرقى دور الأزياء النسائية المستقلة تحت سقف واحد',
   heroDescEn: "Discover distinct independent women's fashion boutiques under one roof",
   heroBtnAr: 'اكتشفي المتاجر',
-  heroBtnEn: 'EXPLORE BOUTIQUES'
+  heroBtnEn: 'EXPLORE BOUTIQUES',
+  storyDuration: 6,
+  reviewsEnabled: true
 };
 
 // Initial Luxury Fashion Stories

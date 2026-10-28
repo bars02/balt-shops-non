@@ -260,18 +260,30 @@ function renderStoresSection() {
                         </div>
                         <div class="flex justify-between text-primary/70">
                             <span>واتساب الطلبات:</span>
-                            <span class="font-mono" dir="ltr">${whatsapp}</span>
+                            <span class="font-mono text-accent font-bold" dir="ltr">${whatsapp}</span>
                         </div>
                         <div class="flex justify-between text-primary/70">
                             <span>إحصائيات المتجر:</span>
                             <span class="font-bold">${prodCount} منتج | ${catCount} قسم</span>
                         </div>
                         <p class="text-[11px] text-primary/60 line-clamp-2 pt-1 font-light">${desc}</p>
+
+                        <!-- Quick Navigation Buttons -->
+                        <div class="grid grid-cols-2 gap-2 pt-2 border-t border-primary/10">
+                            <button type="button" class="btn-outline py-1.5 px-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 hover:bg-primary/5 transition-colors" onclick="goToStoreCategories('${sId}')" title="الانتقال لإدارة وتعديل أقسام هذا المتجر">
+                                <span class="material-symbols-outlined text-sm text-accent">category</span>
+                                <span>أقسام المتجر</span>
+                            </button>
+                            <button type="button" class="btn-outline py-1.5 px-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 hover:bg-primary/5 transition-colors" onclick="goToStoreProducts('${sId}')" title="الانتقال لإدارة وعرض منتجات هذا المتجر">
+                                <span class="material-symbols-outlined text-sm text-accent">checkroom</span>
+                                <span>منتجات المتجر</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
                 <div class="p-4 border-t border-primary/5 flex gap-2 bg-primary/2">
-                    <button class="btn-gold flex-1 py-2 rounded-xl text-xs flex items-center justify-center gap-1" onclick="editStore('${sId}')">
-                        <span class="material-symbols-outlined text-sm">edit</span> تعديل
+                    <button class="btn-gold flex-1 py-2 rounded-xl text-xs flex items-center justify-center gap-1 font-bold shadow-sm" onclick="editStore('${sId}')">
+                        <span class="material-symbols-outlined text-sm">edit</span> تعديل المتجر
                     </button>
                     <button class="btn-outline px-3 py-2 rounded-xl text-xs flex items-center justify-center" onclick="toggleStoreActive('${sId}')" title="${store.active !== false ? 'إخفاء المتجر' : 'تفعيل المتجر'}">
                         <span class="material-symbols-outlined text-sm">${store.active !== false ? 'visibility_off' : 'visibility'}</span>
@@ -281,6 +293,42 @@ function renderStoresSection() {
         `;
     }).join('');
 }
+
+// Format Helpers
+function formatWhatsAppNumber(num) {
+    if (!num) return '';
+    let cleaned = String(num).replace(/[^0-9]/g, '');
+    if (cleaned.startsWith('00964')) cleaned = cleaned.substring(2);
+    else if (cleaned.startsWith('07')) cleaned = '964' + cleaned.substring(1);
+    else if (cleaned.startsWith('7') && cleaned.length === 10) cleaned = '964' + cleaned;
+    return cleaned;
+}
+
+function formatInstagramHandle(ig) {
+    if (!ig) return '';
+    let val = String(ig).trim();
+    if (val.startsWith('http://') || val.startsWith('https://')) return val;
+    val = val.replace(/^@+/, '');
+    return `https://instagram.com/${val}`;
+}
+
+window.goToStoreCategories = (storeId) => {
+    showSection('categories');
+    const select = document.getElementById('category-store-select');
+    if (select) {
+        select.value = storeId;
+        renderCategoriesSection();
+    }
+};
+
+window.goToStoreProducts = (storeId) => {
+    showSection('products');
+    const filter = document.getElementById('product-store-filter');
+    if (filter) {
+        filter.value = storeId;
+        renderProductsSection();
+    }
+};
 
 window.openStoreModal = () => {
     editingStoreId = null;
@@ -325,10 +373,20 @@ window.saveStore = async (e) => {
     const badgeEn = document.getElementById('store-badge-en').value.trim();
     const descAr = document.getElementById('store-desc-ar').value.trim();
     const banner = document.getElementById('store-banner-url').value.trim() || 'images/hero_noon.jpg';
-    const whatsapp = document.getElementById('store-whatsapp').value.trim();
-    const instagram = document.getElementById('store-instagram').value.trim();
+    let whatsapp = document.getElementById('store-whatsapp').value.trim();
+    let instagram = document.getElementById('store-instagram').value.trim();
     const order = parseInt(document.getElementById('store-order').value) || 1;
     const active = document.getElementById('store-active-check').checked;
+
+    // Clean & format
+    whatsapp = formatWhatsAppNumber(whatsapp);
+    instagram = formatInstagramHandle(instagram);
+
+    const existingStore = stores.find(x => x.id === id);
+    const existingCategories = existingStore?.categories || [
+        { id: "all", titleAr: "الكل", titleEn: "All" },
+        { id: "new", titleAr: "وصل حديثاً", titleEn: "New In" }
+    ];
 
     const storeObj = {
         id,
@@ -343,10 +401,7 @@ window.saveStore = async (e) => {
         instagram,
         order,
         active,
-        categories: [
-            { id: "all", titleAr: "الكل", titleEn: "All" },
-            { id: "new", titleAr: "وصل حديثاً", titleEn: "New In" }
-        ]
+        categories: existingCategories
     };
 
     stores = await db.saveStore(storeObj);
@@ -611,11 +666,167 @@ function renderProductsSection() {
     }).join('');
 }
 
+// --- Product Variants & Sizes Studio State ---
+let productVariants = [];
+
+window.addQuickSize = (size) => {
+    const input = document.getElementById('product-sizes');
+    if (!input) return;
+    const current = input.value.split(',').map(s => s.trim()).filter(Boolean);
+    if (!current.includes(size)) {
+        current.push(size);
+        input.value = current.join(', ');
+    }
+};
+
+window.renderProductVariantsUI = () => {
+    const container = document.getElementById('product-variants-list');
+    if (!container) return;
+
+    if (productVariants.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-4 bg-white/60 rounded-xl border border-dashed border-primary/20 text-primary/40 text-[11px]">
+                لم تتم إضافة ألوان إضافية بعد. انقري على "إضافة لون جديد" أعلاه لإضافة درجات لونية متعددة مع صورها ووصفها ومقاساتها.
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = productVariants.map((v, i) => `
+        <div class="p-3.5 bg-white rounded-2xl border border-primary/10 shadow-sm space-y-3 relative">
+            <div class="flex items-center justify-between border-b border-primary/5 pb-2">
+                <div class="flex items-center gap-2.5">
+                    <input type="color" value="${v.hex || '#1B2E1D'}" onchange="updateVariantField(${i}, 'hex', this.value)" class="w-8 h-8 rounded-full border-2 border-accent cursor-pointer p-0 overflow-hidden shadow-sm" title="اختاري لون الدائرة">
+                    <span class="font-mono text-[10px] text-primary/60 font-bold">${v.hex || '#1B2E1D'}</span>
+                    <span class="font-bold text-xs text-primary">${v.colorNameAr || `لون #${i + 1}`}</span>
+                </div>
+                <button type="button" onclick="removeProductVariant(${i})" class="text-red-500 hover:text-red-700 text-[11px] font-bold flex items-center gap-0.5 p-1 transition-colors">
+                    <span class="material-symbols-outlined text-sm">delete</span> حذف اللون
+                </button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="text-[10px] text-primary/70 block mb-0.5 font-bold">اسم اللون بالعربي *</label>
+                    <input type="text" value="${sanitizeHtml(v.colorNameAr || '')}" oninput="updateVariantField(${i}, 'colorNameAr', this.value)" class="input-field py-1 text-xs" placeholder="مثال: أسود ملكي">
+                </div>
+                <div>
+                    <label class="text-[10px] text-primary/70 block mb-0.5 font-bold">اسم اللون بالإنجليزي (EN)</label>
+                    <input type="text" value="${sanitizeHtml(v.colorNameEn || '')}" oninput="updateVariantField(${i}, 'colorNameEn', this.value)" class="input-field py-1 text-xs" placeholder="Royal Black">
+                </div>
+            </div>
+
+            <div>
+                <label class="text-[10px] text-primary/70 block mb-0.5 font-bold">صورة خاصة بهذا اللون (تتبدل تلقائياً عند النقر)</label>
+                <div class="flex gap-2">
+                    <input type="text" value="${sanitizeHtml(v.image || '')}" id="variant-img-${i}" oninput="updateVariantField(${i}, 'image', this.value)" class="input-field py-1 text-xs flex-1 text-left font-mono" dir="ltr" placeholder="images/hero_noon.jpg أو رابط مباشر">
+                    <label class="btn-gold px-2.5 py-1 rounded-xl cursor-pointer text-[10px] flex items-center gap-1 font-bold shrink-0 shadow-sm" title="اختاري صورة هذا اللون من جهازكِ">
+                        <span class="material-symbols-outlined text-xs">upload_file</span>
+                        <span>استيراد صورة 📁</span>
+                        <input type="file" accept="image/*" class="hidden" onchange="handleVariantImageUpload(this, ${i})">
+                    </label>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                    <label class="text-[10px] text-primary/70 block mb-0.5">وصف مخصص لهذا اللون (اختياري)</label>
+                    <input type="text" value="${sanitizeHtml(v.descriptionAr || '')}" oninput="updateVariantField(${i}, 'descriptionAr', this.value)" class="input-field py-1 text-xs" placeholder="مثال: قماش تفته أسود ملكي مع تطريز">
+                </div>
+                <div>
+                    <label class="text-[10px] text-primary/70 block mb-0.5">مقاسات مخصصة لهذا اللون (اختياري)</label>
+                    <input type="text" value="${sanitizeHtml(Array.isArray(v.sizes) ? v.sizes.join(', ') : (v.sizes || ''))}" oninput="updateVariantField(${i}, 'sizes', this.value)" class="input-field py-1 text-xs" placeholder="38, 40, 42">
+                </div>
+            </div>
+        </div>
+    `).join('');
+};
+
+window.addProductVariant = () => {
+    productVariants.push({
+        id: 'var_' + Date.now(),
+        hex: '#1B2E1D',
+        colorNameAr: '',
+        colorNameEn: '',
+        image: '',
+        descriptionAr: '',
+        descriptionEn: '',
+        sizes: []
+    });
+    renderProductVariantsUI();
+};
+
+window.removeProductVariant = (index) => {
+    productVariants.splice(index, 1);
+    renderProductVariantsUI();
+};
+
+window.updateVariantField = (index, field, value) => {
+    if (!productVariants[index]) return;
+    if (field === 'sizes') {
+        productVariants[index].sizes = value.split(',').map(s => s.trim()).filter(Boolean);
+    } else {
+        productVariants[index][field] = value;
+    }
+};
+
+window.handleVariantImageUpload = (inputEl, index) => {
+    if (!inputEl.files || !inputEl.files[0]) return;
+    const file = inputEl.files[0];
+    if (file.size > 5 * 1024 * 1024) {
+        showToast("حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 5 ميجابايت", true);
+        return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const base64Data = e.target.result;
+        updateVariantField(index, 'image', base64Data);
+        const input = document.getElementById(`variant-img-${index}`);
+        if (input) input.value = base64Data;
+        showToast("تم استيراد صورة اللون بنجاح من جهازكِ!");
+    };
+    reader.readAsDataURL(file);
+};
+
+window.autoTranslateAllProductFields = async () => {
+    const nameAr = document.getElementById('product-name-ar')?.value;
+    const descAr = document.getElementById('product-desc-ar')?.value;
+
+    if (!nameAr && !descAr && productVariants.length === 0) {
+        showToast("يرجى كتابة اسم أو وصف المنتج بالعربي أولاً", true);
+        return;
+    }
+
+    showToast("جاري ترجمة كافة نصوص القطعة وتشكيلاتها للإنكليزية...");
+
+    if (nameAr) {
+        const nameEn = await translateArabicToEnglish(nameAr);
+        const nameEnEl = document.getElementById('product-name-en');
+        if (nameEnEl) nameEnEl.value = nameEn;
+    }
+
+    for (let i = 0; i < productVariants.length; i++) {
+        const v = productVariants[i];
+        if (v.colorNameAr && !v.colorNameEn) {
+            v.colorNameEn = await translateArabicToEnglish(v.colorNameAr);
+        }
+        if (v.descriptionAr && !v.descriptionEn) {
+            v.descriptionEn = await translateArabicToEnglish(v.descriptionAr);
+        }
+    }
+
+    renderProductVariantsUI();
+    showToast("تمت ترجمة كافة الحقول وتشكيلات الألوان بنجاح!");
+};
+
 window.openProductModal = () => {
     editingProductId = null;
     document.getElementById('product-modal-title').innerText = 'إضافة قطعة جديدة';
     document.getElementById('product-form')?.reset();
     document.getElementById('product-edit-id').value = '';
+
+    productVariants = [];
+    renderProductVariantsUI();
 
     const storeSelect = document.getElementById('product-store-select');
     if (storeSelect) {
@@ -663,6 +874,37 @@ window.editProduct = (id) => {
     document.getElementById('product-sizes').value = (p.sizes || []).join(', ');
     document.getElementById('product-desc-ar').value = p.descriptionAr || '';
 
+    // Load Color Variants
+    if (Array.isArray(p.colors) && p.colors.length > 0) {
+        productVariants = p.colors.map(c => {
+            if (typeof c === 'object') {
+                return {
+                    id: c.id || ('var_' + Math.random().toString(36).substr(2, 9)),
+                    hex: c.hex || '#1B2E1D',
+                    colorNameAr: c.colorNameAr || c.ar || c.name || '',
+                    colorNameEn: c.colorNameEn || c.name || '',
+                    image: c.image || '',
+                    descriptionAr: c.descriptionAr || '',
+                    descriptionEn: c.descriptionEn || '',
+                    sizes: Array.isArray(c.sizes) ? c.sizes : []
+                };
+            }
+            return {
+                id: 'var_' + Math.random().toString(36).substr(2, 9),
+                hex: String(c),
+                colorNameAr: '',
+                colorNameEn: '',
+                image: '',
+                descriptionAr: '',
+                descriptionEn: '',
+                sizes: []
+            };
+        });
+    } else {
+        productVariants = [];
+    }
+    renderProductVariantsUI();
+
     document.getElementById('product-modal')?.classList.add('open');
 };
 
@@ -677,6 +919,25 @@ window.saveProduct = async (e) => {
     const sizes = document.getElementById('product-sizes').value.split(',').map(s => s.trim()).filter(Boolean);
     const desc = document.getElementById('product-desc-ar').value.trim();
 
+    // Collect all images from variants
+    const allImages = [image];
+    productVariants.forEach(v => {
+        if (v.image && !allImages.includes(v.image)) {
+            allImages.push(v.image);
+        }
+    });
+
+    const formattedColors = productVariants.map(v => ({
+        id: v.id || ('var_' + Math.random().toString(36).substr(2, 9)),
+        hex: v.hex || '#1B2E1D',
+        colorNameAr: v.colorNameAr || 'لون قياسي',
+        colorNameEn: v.colorNameEn || 'Standard',
+        image: v.image || image,
+        descriptionAr: v.descriptionAr || desc,
+        descriptionEn: v.descriptionEn || (nameEn + ' exquisite piece.'),
+        sizes: (Array.isArray(v.sizes) && v.sizes.length) ? v.sizes : (sizes.length ? sizes : ["Standard"])
+    }));
+
     const prodObj = {
         id: editingProductId || Date.now(),
         storeId,
@@ -687,13 +948,15 @@ window.saveProduct = async (e) => {
         currencyAr: "د.ع ",
         currencyEn: "IQD ",
         image,
+        images: allImages,
+        colors: formattedColors,
         sizes: sizes.length ? sizes : ["Standard"],
         descriptionAr: desc,
         descriptionEn: nameEn + " exquisite piece."
     };
 
     products = await db.saveProduct(prodObj);
-    showToast(editingProductId ? "تم تحديث المنتج بنجاح" : "تمت إضافة المنتج الجديد بنجاح!");
+    showToast(editingProductId ? "تم تحديث المنتج وتشيكلات الألوان بنجاح" : "تمت إضافة المنتج الجديد وتشيكلات الألوان بنجاح!");
 
     closeProductModal();
     renderProductsSection();
@@ -909,24 +1172,60 @@ window.saveGameConfigChanges = async () => {
 // ============================================================
 async function renderCommentsSection() {
     const list = document.getElementById('comments-admin-list');
+    const toggle = document.getElementById('reviews-active-toggle');
+    if (toggle) {
+        toggle.checked = platformSettings?.reviewsEnabled !== false;
+    }
+
     if (!list) return;
 
-    const reviews = await db.getReviews();
+    // Fetch all reviews including unapproved ones for admin
+    const reviews = await db.getReviews(true);
+
+    if (!reviews || reviews.length === 0) {
+        list.innerHTML = `
+            <div class="card p-8 text-center text-primary/40 text-xs">
+                لا توجد تعليقات أو تقييمات مسجلة حالياً.
+            </div>
+        `;
+        return;
+    }
 
     list.innerHTML = reviews.map(c => `
-        <div class="card p-4 flex justify-between items-center text-xs mb-2">
+        <div class="card p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-xs mb-2">
             <div>
                 <div class="flex items-center gap-2 mb-1">
                     <strong class="font-bold text-primary">${sanitizeHtml(c.authorName)}</strong>
                     <span class="badge bg-primary/10 text-primary">${sanitizeHtml(c.storeName || 'منصة نون')}</span>
-                    <span class="text-primary/40 text-[10px]">${sanitizeHtml(c.createdAt || '')}</span>
+                    <span class="badge ${c.isApproved !== false ? 'badge-active' : 'badge-inactive'}">
+                        ${c.isApproved !== false ? 'معروض للعميلات' : 'مخفي مؤقتاً'}
+                    </span>
+                    <span class="text-primary/40 text-[10px] font-mono">${sanitizeHtml(c.createdAt || '')}</span>
                 </div>
-                <p class="text-primary/70 font-light">${sanitizeHtml(c.content)}</p>
+                <p class="text-primary/75 font-light leading-relaxed">${sanitizeHtml(c.content)}</p>
             </div>
-            <button class="text-xs text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50" onclick="deleteComment(${c.id})">حذف</button>
+            <div class="flex items-center gap-2 self-end sm:self-center shrink-0">
+                <button class="px-3 py-1.5 rounded-lg border text-xs font-bold transition-colors ${c.isApproved !== false ? 'border-amber-300 text-amber-700 hover:bg-amber-50' : 'border-emerald-300 text-emerald-700 hover:bg-emerald-50'}" onclick="toggleCommentApproval(${c.id}, ${c.isApproved !== false})">
+                    ${c.isApproved !== false ? 'إخفاء التعليق' : 'إظهار للعميلات'}
+                </button>
+                <button class="text-xs text-red-500 hover:text-red-700 px-3 py-1.5 rounded-lg border border-red-200 hover:bg-red-50 font-bold transition-colors" onclick="deleteComment(${c.id})">حذف نهائي</button>
+            </div>
         </div>
     `).join('');
 }
+
+window.saveReviewsGlobalSetting = async () => {
+    const enabled = document.getElementById('reviews-active-toggle')?.checked;
+    platformSettings.reviewsEnabled = enabled;
+    await db.savePlatformSettings(platformSettings);
+    showToast(enabled ? "تم تفعيل نظام التقييمات في المنصة" : "تم إيقاف نظام التقييمات في المنصة");
+};
+
+window.toggleCommentApproval = async (id, currentApproved) => {
+    await db.toggleReviewApproval(id, !currentApproved);
+    await renderCommentsSection();
+    showToast(!currentApproved ? "تم إظهار التعليق للعميلات بنجاح" : "تم إخفاء التعليق عن العميلات بنجاح");
+};
 
 window.deleteComment = async (id) => {
     if (!confirm("هل أنتِ متأكدة من حذف هذا التعليق نهائياً من قاعدة البيانات؟")) return;
@@ -940,6 +1239,11 @@ window.deleteComment = async (id) => {
 // ============================================================
 async function renderStoriesSection() {
     const grid = document.getElementById('stories-admin-grid');
+    const durInput = document.getElementById('story-duration-input');
+    if (durInput) {
+        durInput.value = platformSettings?.storyDuration || 6;
+    }
+
     if (!grid) return;
 
     stories = await db.getStories();
@@ -997,6 +1301,13 @@ async function renderStoriesSection() {
         `;
     }).join('');
 }
+
+window.saveStoryDurationSetting = async () => {
+    const dur = parseInt(document.getElementById('story-duration-input')?.value) || 6;
+    platformSettings.storyDuration = Math.max(2, Math.min(30, dur));
+    await db.savePlatformSettings(platformSettings);
+    showToast(`تم حفظ مدة عرض كل ستوري بنجاح (${platformSettings.storyDuration} ثوانٍ)!`);
+};
 
 window.openStoryModal = () => {
     const sel = document.getElementById('story-store-select');
@@ -1087,18 +1398,40 @@ async function renderSettingsSection() {
 window.savePlatformSettings = async (e) => {
     e.preventDefault();
     const logo = document.getElementById('settings-logo-url')?.value.trim() || 'images/logo.png';
-    const wa = document.getElementById('settings-whatsapp')?.value.trim() || '';
-    const ig = document.getElementById('settings-instagram')?.value.trim() || '';
+    let wa = document.getElementById('settings-whatsapp')?.value.trim() || '';
+    let ig = document.getElementById('settings-instagram')?.value.trim() || '';
     const fee = Number(document.getElementById('settings-delivery-fee')?.value) || 5000;
 
+    // Clean & format
+    wa = formatWhatsAppNumber(wa);
+    ig = formatInstagramHandle(ig);
+
     platformSettings = await db.savePlatformSettings({
+        ...platformSettings,
         logo: logo,
         whatsapp: wa,
         instagram: ig,
         deliveryFee: fee
     });
 
-    showToast("تم حفظ إعدادات الهوية والتوصيل وتحديث الشعار بنجاح!");
+    if (document.getElementById('settings-whatsapp')) document.getElementById('settings-whatsapp').value = wa;
+    if (document.getElementById('settings-instagram')) document.getElementById('settings-instagram').value = ig;
+
+    showToast("تم حفظ إعدادات الهوية والتوصيل وتحديث الشعار ورقم الواتساب بنجاح!");
+};
+
+window.purgeAllMockData = async () => {
+    if (!confirm("هل أنتِ متأكدة من رغبتكِ في تفريغ وحذف كافة المنتجات والتقييمات التجريبية القديمة المخزنة في المتصفح؟ ستبقى فقط المنتجات المسجلة في السيرفر.")) return;
+    try {
+        localStorage.removeItem('noon_products');
+        localStorage.removeItem('noon_reviews');
+        products = await db.getProducts();
+        renderProductsSection();
+        renderStoresSection();
+        showToast("تم تنظيف وتفريغ كافة البيانات التجريبية بنجاح!");
+    } catch(err) {
+        showToast("حدث خطأ أثناء التنظيف", true);
+    }
 };
 
 // ============================================================

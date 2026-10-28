@@ -397,15 +397,40 @@ window.viewProduct = (id) => {
   state.currentQuantity = 1;
   document.getElementById('product-quantity').innerText = 1;
 
-  // Colors
+  // Colors & Variants Studio integration
   const swatchContainer = document.getElementById('color-swatches');
-  if (p.colors && p.colors.length > 0) {
-    swatchContainer.innerHTML = p.colors.map((c, i) => `
-      <button class="color-swatch ${i === 0 ? 'active' : ''}" style="background-color:${sanitizeHtml(c.hex)}" title="${sanitizeHtml(lang === 'en' ? c.name : c.ar)}" onclick="selectColor(this, '${sanitizeHtml(c.hex)}')"></button>
-    `).join('');
-    swatchContainer.classList.remove('hidden');
+  const colorNameLabel = document.getElementById('product-selected-color-name');
+  const colorWrapper = document.getElementById('color-selection-wrap');
+
+  if (p.colors && Array.isArray(p.colors) && p.colors.length > 0) {
+    if (colorWrapper) colorWrapper.classList.remove('hidden');
+    if (swatchContainer) swatchContainer.classList.remove('hidden');
+
+    // Default to first variant
+    const firstVariant = p.colors[0];
+    state.currentColor = firstVariant;
+
+    if (colorNameLabel) {
+      const cLabel = typeof firstVariant === 'object'
+        ? (lang === 'en' ? (firstVariant.colorNameEn || firstVariant.name || '') : (firstVariant.colorNameAr || firstVariant.ar || ''))
+        : '';
+      colorNameLabel.innerText = cLabel ? `(${cLabel})` : '';
+    }
+
+    if (swatchContainer) {
+      swatchContainer.innerHTML = p.colors.map((c, i) => {
+        const hex = typeof c === 'object' ? (c.hex || '#1B2E1D') : String(c);
+        const name = typeof c === 'object' ? (lang === 'en' ? (c.colorNameEn || c.name || '') : (c.colorNameAr || c.ar || '')) : '';
+        return `
+          <button class="color-swatch ${i === 0 ? 'active' : ''}" style="background-color:${sanitizeHtml(hex)}" title="${sanitizeHtml(name)}" onclick="switchProductColorVariant(${i}, this)"></button>
+        `;
+      }).join('');
+    }
   } else {
-    swatchContainer.innerHTML = '';
+    state.currentColor = null;
+    if (colorWrapper) colorWrapper.classList.add('hidden');
+    if (swatchContainer) swatchContainer.innerHTML = '';
+    if (colorNameLabel) colorNameLabel.innerText = '';
   }
 
   // Sizes
@@ -427,7 +452,7 @@ window.viewProduct = (id) => {
           <span class="material-symbols-outlined text-sm">keyboard_arrow_down</span>
         </button>
         <div class="hidden pb-4 text-xs text-primary/70 leading-relaxed font-light">
-          ${lang === 'en' ? `Direct dispatch from ${sanitizeHtml(store.nameEn)}. Orders confirmed via WhatsApp within minutes.` : `يتم شحن هذه القطعة مباشرة من دار أزياء ${sanitizeHtml(store.nameAr)}. يتم تأكيد الطلبات عبر واتساب المتجر فوراً.`}
+          ${lang === 'en' ? `Direct dispatch from ${sanitizeHtml(store.nameEn)}. Orders confirmed via WhatsApp within minutes.` : `يتم شحن هذه القطعة مباشرة من دار أزياء ${sanitizeHtml(store.nameAr)}. يتم تأكيد الطلبات عبر واتساب المنصة فوراً.`}
         </div>
       </div>
     `;
@@ -435,6 +460,125 @@ window.viewProduct = (id) => {
 
   renderProductReviews(id);
   navigate('product');
+};
+
+window.switchProductColorVariant = (index, btn) => {
+  const p = state.products.find(x => x.id === state.currentProductId);
+  if (!p || !p.colors || !p.colors[index]) return;
+  const variant = p.colors[index];
+  state.currentColor = variant;
+  const lang = i18n.currentLang;
+
+  // Visual active ring on clicked swatch
+  document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+
+  // Update Color Name Label
+  const colorNameLabel = document.getElementById('product-selected-color-name');
+  if (colorNameLabel) {
+    const cLabel = typeof variant === 'object'
+      ? (lang === 'en' ? (variant.colorNameEn || variant.name || '') : (variant.colorNameAr || variant.ar || ''))
+      : '';
+    colorNameLabel.innerText = cLabel ? `(${cLabel})` : '';
+  }
+
+  // If this variant has its own image, update the main gallery
+  if (typeof variant === 'object' && variant.image) {
+    const gallery = document.getElementById('product-gallery');
+    if (gallery) {
+      gallery.innerHTML = `
+        <div class="snap-start w-full h-full flex-shrink-0 animate-fade-in">
+          <img src="${sanitizeHtml(variant.image)}" class="w-full h-full object-cover object-top" alt="${sanitizeHtml(p.nameAr)}" onerror="this.src='images/hero_noon.jpg'">
+        </div>
+      `;
+    }
+  }
+
+  // If this variant has custom description, update description
+  if (typeof variant === 'object' && (variant.descriptionAr || variant.descriptionEn)) {
+    const descEl = document.getElementById('product-desc');
+    if (descEl) {
+      descEl.innerText = lang === 'en' ? (variant.descriptionEn || p.descriptionEn) : (variant.descriptionAr || p.descriptionAr);
+    }
+  }
+
+  // If this variant has custom sizes, update size selector
+  if (typeof variant === 'object' && Array.isArray(variant.sizes) && variant.sizes.length > 0) {
+    const sizeGrid = document.getElementById('size-selector');
+    if (sizeGrid) {
+      sizeGrid.innerHTML = variant.sizes.map((s, i) => `
+        <button class="py-2.5 border ${i === 0 ? 'bg-primary text-background' : 'border-primary/15 text-primary'} text-[10px] font-bold rounded-lg transition-all" onclick="selectSize(this)">${sanitizeHtml(s)}</button>
+      `).join('');
+      state.currentSize = variant.sizes[0];
+    }
+  }
+};
+
+window.renderProductReviews = async (productId) => {
+  const listEl = document.getElementById('product-reviews-list');
+  const inputWrap = document.getElementById('product-review-input')?.closest('.bg-primary\\/5');
+  const reviewsEnabled = state.platformSettings?.reviewsEnabled !== false;
+
+  if (inputWrap) {
+    if (!reviewsEnabled) {
+      inputWrap.innerHTML = `
+        <div class="py-3 text-center text-primary/50 text-xs italic">
+          نظام التقييمات والتعليقات متوقف حالياً من إدارة المنصة.
+        </div>
+      `;
+    }
+  }
+
+  if (!listEl) return;
+  if (!reviewsEnabled) {
+    listEl.innerHTML = '';
+    return;
+  }
+
+  const allReviews = await db.getReviews();
+  const productReviews = allReviews.filter(r => r.productId === productId || (!r.productId && r.storeId === state.activeStoreId));
+
+  if (productReviews.length === 0) {
+    listEl.innerHTML = `<p class="text-xs text-primary/40 text-center py-2 italic">كوني أول من يشاركنا رأيها في هذه القطعة الفاخرة.</p>`;
+    return;
+  }
+
+  listEl.innerHTML = productReviews.slice(0, 5).map(r => `
+    <div class="p-3 rounded-xl bg-white border border-primary/5 shadow-sm text-xs">
+      <div class="flex items-center justify-between mb-1">
+        <span class="font-bold text-primary">${sanitizeHtml(r.authorName)}</span>
+        <span class="text-[9px] text-primary/40">${sanitizeHtml(r.createdAt || '')}</span>
+      </div>
+      <p class="text-primary/70 font-light leading-relaxed">${sanitizeHtml(r.content)}</p>
+    </div>
+  `).join('');
+};
+
+window.submitProductReview = async () => {
+  if (state.platformSettings?.reviewsEnabled === false) {
+    showToast("التقييمات متوقفة حالياً", "error");
+    return;
+  }
+  const input = document.getElementById('product-review-input');
+  const text = input?.value.trim();
+  if (!text) {
+    showToast(i18n.currentLang === 'en' ? "Please write your review" : "يرجى كتابة التقييم", "error");
+    return;
+  }
+  const currentStore = state.stores.find(s => s.id === state.activeStoreId);
+  const author = state.user?.name || (i18n.currentLang === 'en' ? 'Valued Client' : 'عميلة نون');
+
+  await db.addReview({
+    productId: state.currentProductId,
+    storeId: state.activeStoreId,
+    storeName: currentStore ? (i18n.currentLang === 'en' ? currentStore.nameEn : currentStore.nameAr) : 'منصة نون',
+    authorName: author,
+    content: text
+  });
+
+  if (input) input.value = '';
+  await renderProductReviews(state.currentProductId);
+  showToast(i18n.currentLang === 'en' ? "Thank you for your review!" : "شكراً لكِ! تم نشر تقييمكِ بنجاح");
 };
 
 window.selectColor = (btn, hex) => {
@@ -461,6 +605,14 @@ window.addToBag = () => {
   const p = state.products.find(x => x.id === state.currentProductId);
   if (!p) return;
   const store = state.stores.find(s => s.id === p.storeId) || state.stores[0];
+  const lang = i18n.currentLang;
+
+  const colorName = state.currentColor && typeof state.currentColor === 'object'
+    ? (lang === 'en' ? (state.currentColor.colorNameEn || state.currentColor.name || '') : (state.currentColor.colorNameAr || state.currentColor.ar || ''))
+    : '';
+  const itemImage = (state.currentColor && typeof state.currentColor === 'object' && state.currentColor.image)
+    ? state.currentColor.image
+    : p.image;
 
   state.cart.push({
     id: p.id,
@@ -473,8 +625,10 @@ window.addToBag = () => {
     price: Number(p.price) || 0,
     currencyAr: p.currencyAr || 'د.ع ',
     currencyEn: p.currencyEn || 'IQD ',
-    image: p.image,
+    image: itemImage,
     selectedSize: state.currentSize || 'Standard',
+    selectedColor: colorName,
+    selectedColorHex: (state.currentColor && typeof state.currentColor === 'object') ? state.currentColor.hex : '',
     quantity: state.currentQuantity,
     cartId: Date.now() + Math.random()
   });
@@ -522,7 +676,17 @@ window.updateCartUI = () => {
             ${sanitizeHtml(lang === 'en' ? item.storeNameEn : item.storeNameAr)}
           </span>
           <h4 class="font-serif text-sm truncate font-semibold text-primary cursor-pointer hover:text-accent transition-colors" onclick="viewProduct(${Number(item.id)})">${sanitizeHtml(lang === 'en' ? item.nameEn : item.nameAr)}</h4>
-          <p class="text-[10px] text-primary/60 mt-0.5">${sanitizeHtml(item.selectedSize)} | ${Number(item.price).toLocaleString()} ${currency}</p>
+          <div class="flex items-center gap-1.5 mt-0.5 text-[10px] text-primary/65">
+            <span>${sanitizeHtml(item.selectedSize)}</span>
+            ${item.selectedColor ? `
+              <span class="inline-flex items-center gap-1 bg-primary/5 px-2 py-0.5 rounded-full border border-primary/10 text-primary font-bold">
+                ${item.selectedColorHex ? `<span class="w-2 h-2 rounded-full border border-black/10 inline-block" style="background-color: ${sanitizeHtml(item.selectedColorHex)}"></span>` : ''}
+                <span>${sanitizeHtml(item.selectedColor)}</span>
+              </span>
+            ` : ''}
+            <span>|</span>
+            <span>${Number(item.price).toLocaleString()} ${currency}</span>
+          </div>
           
           <!-- Quantity Controls -->
           <div class="flex items-center justify-between mt-2">
@@ -629,8 +793,9 @@ window.orderWhatsApp = async () => {
       msg += `📍 *Boutique: ${s.nameEn}*\n`;
       s.items.forEach(i => {
         const itemLink = `${baseUrl}/?product=${i.id}`;
+        const colorStr = i.selectedColor ? ` | Color: ${i.selectedColor}` : '';
         msg += `▪ *${i.nameEn}*\n`;
-        msg += `   - Size: ${i.selectedSize} | Qty: ${i.quantity} | Price: ${Number(i.price).toLocaleString()} ${currencyStr}\n`;
+        msg += `   - Size: ${i.selectedSize}${colorStr} | Qty: ${i.quantity} | Price: ${Number(i.price).toLocaleString()} ${currencyStr}\n`;
         msg += `   - Item Link: ${itemLink}\n`;
       });
       msg += `\n`;
@@ -649,8 +814,9 @@ window.orderWhatsApp = async () => {
       msg += `📍 *المتجر: ${s.nameAr}*\n`;
       s.items.forEach(i => {
         const itemLink = `${baseUrl}/?product=${i.id}`;
+        const colorStr = i.selectedColor ? ` | اللون: ${i.selectedColor}` : '';
         msg += `▪ *${i.nameAr}*\n`;
-        msg += `   - القياس: ${i.selectedSize} | العدد: ${i.quantity} | السعر: ${Number(i.price).toLocaleString()} ${currencyStr}\n`;
+        msg += `   - القياس: ${i.selectedSize}${colorStr} | العدد: ${i.quantity} | السعر: ${Number(i.price).toLocaleString()} ${currencyStr}\n`;
         msg += `   - رابط القطعة: ${itemLink}\n`;
       });
       msg += `\n`;
@@ -677,7 +843,14 @@ window.orderWhatsApp = async () => {
     console.warn('Order background save note:', e);
   }
 
-  const targetWaNumber = targetStore.whatsapp.replace(/[^0-9]/g, '');
+  // Prioritize Platform Settings WhatsApp Number & Format Iraqi numbers
+  let rawWa = state.platformSettings?.whatsapp || targetStore?.whatsapp || '9647835544744';
+  let targetWaNumber = String(rawWa).replace(/[^0-9]/g, '');
+  if (targetWaNumber.startsWith('00964')) targetWaNumber = targetWaNumber.substring(2);
+  else if (targetWaNumber.startsWith('07')) targetWaNumber = '964' + targetWaNumber.substring(1);
+  else if (targetWaNumber.startsWith('7') && targetWaNumber.length === 10) targetWaNumber = '964' + targetWaNumber;
+  if (!targetWaNumber) targetWaNumber = '9647835544744';
+
   window.open(`https://wa.me/${encodeURIComponent(targetWaNumber)}?text=${encodeURIComponent(msg)}`, '_blank');
 };
 
@@ -720,77 +893,173 @@ function drawFortuneWheel(rotationAngle = 0) {
   const canvas = document.getElementById('fortune-wheel-canvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
-  const width = canvas.width;
-  const height = canvas.height;
-  const cx = width / 2;
-  const cy = height / 2;
-  const radius = cx - 10;
+
+  // High-DPI Retina Scaling (Crisp on all mobile/retina displays)
+  const dpr = window.devicePixelRatio || 2;
+  const size = 340;
+  if (canvas.width !== size * dpr || canvas.height !== size * dpr) {
+    canvas.width = size * dpr;
+    canvas.height = size * dpr;
+  }
+
+  ctx.save();
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, size, size);
+
+  const cx = size / 2;
+  const cy = size / 2;
+  const outerRimRadius = 162;
+  const wheelRadius = 144;
   const prizes = getActiveWheelPrizes();
   const numSlices = prizes.length;
   const arc = (2 * Math.PI) / numSlices;
   const lang = i18n.currentLang;
 
-  ctx.clearRect(0, 0, width, height);
-
-  // Outer Decorative Ring
+  // 1. Outer Golden Studded Bezel
   ctx.save();
   ctx.beginPath();
-  ctx.arc(cx, cy, radius + 6, 0, 2 * Math.PI);
-  ctx.fillStyle = '#1B2E1D';
+  ctx.arc(cx, cy, outerRimRadius, 0, 2 * Math.PI);
+  ctx.fillStyle = '#0F2414';
   ctx.fill();
+
+  // Golden Outer Bezel Gradient
+  const rimGrad = ctx.createLinearGradient(0, 0, size, size);
+  rimGrad.addColorStop(0, '#B8860B');
+  rimGrad.addColorStop(0.25, '#FFDF73');
+  rimGrad.addColorStop(0.5, '#D4AF37');
+  rimGrad.addColorStop(0.75, '#FFF2A3');
+  rimGrad.addColorStop(1, '#996515');
   ctx.lineWidth = 4;
-  ctx.strokeStyle = '#D4AF37';
+  ctx.strokeStyle = rimGrad;
   ctx.stroke();
+
+  // Inner metallic groove
+  ctx.beginPath();
+  ctx.arc(cx, cy, wheelRadius + 2, 0, 2 * Math.PI);
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(212, 175, 55, 0.4)';
+  ctx.stroke();
+
+  // 16 Glowing Jewel Studs / Rivets
+  const numStuds = 16;
+  const studRadius = 153;
+  for (let s = 0; s < numStuds; s++) {
+    const studAngle = (s * 2 * Math.PI) / numStuds;
+    const sx = cx + studRadius * Math.cos(studAngle);
+    const sy = cy + studRadius * Math.sin(studAngle);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(sx, sy, 3.8, 0, 2 * Math.PI);
+    const studGrad = ctx.createRadialGradient(sx - 1, sy - 1, 0.5, sx, sy, 4);
+    studGrad.addColorStop(0, '#FFFBE6');
+    studGrad.addColorStop(0.4, '#FFE27A');
+    studGrad.addColorStop(0.8, '#D4AF37');
+    studGrad.addColorStop(1, '#785507');
+    ctx.fillStyle = studGrad;
+    ctx.shadowColor = 'rgba(255, 223, 115, 0.8)';
+    ctx.shadowBlur = 4;
+    ctx.fill();
+    ctx.restore();
+  }
   ctx.restore();
 
-  // Slices
+  // 2. High-Contrast Luxury Slices
+  const luxuryPalette = [
+    { bg: '#102616', text: '#FCFAE8' },
+    { bg: '#C99726', text: '#0F2414' },
+    { bg: '#2D0D16', text: '#FCFAE8' },
+    { bg: '#DFC05E', text: '#0F2414' },
+    { bg: '#131F2E', text: '#FCFAE8' },
+    { bg: '#B3831A', text: '#FFFFFF' }
+  ];
+
   prizes.forEach((prize, i) => {
     const angle = rotationAngle + (i * arc);
+    const pal = luxuryPalette[i % luxuryPalette.length];
+    const sliceColor = prize.color || pal.bg;
+    const textColor = prize.textColor || pal.text;
+
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, radius, angle, angle + arc);
+    ctx.arc(cx, cy, wheelRadius, angle, angle + arc);
     ctx.closePath();
-    ctx.fillStyle = prize.color;
+    ctx.fillStyle = sliceColor;
     ctx.fill();
-    ctx.lineWidth = 1.5;
-    ctx.strokeStyle = 'rgba(212, 175, 55, 0.5)';
+
+    // Spoke Border
+    ctx.lineWidth = 1.8;
+    ctx.strokeStyle = 'rgba(212, 175, 55, 0.6)';
     ctx.stroke();
 
-    // Icon & Text along slice radial bisector
+    // Text & Icon along radial bisector
     const midAngle = angle + (arc / 2);
     ctx.translate(cx, cy);
     ctx.rotate(midAngle);
 
-    // Draw Icon
-    ctx.font = 'bold 20px "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+    // Prize Icon
+    ctx.font = 'bold 22px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(prize.icon, radius * 0.76, 0);
+    ctx.fillText(prize.icon || '🎁', wheelRadius * 0.77, 0);
 
-    // Draw Short Label
-    ctx.font = 'bold 9px "IBM Plex Sans Arabic", "Manrope", sans-serif';
-    ctx.fillStyle = prize.textColor;
-    const label = lang === 'en' ? prize.nameEn : prize.nameAr;
-    const shortLabel = label.length > 20 ? label.slice(0, 18) + '..' : label;
-    ctx.fillText(shortLabel, radius * 0.44, 0);
+    // Prize Name - Ultra crisp and legible
+    ctx.save();
+    ctx.font = 'bold 10.5px "IBM Plex Sans Arabic", "Montserrat", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = textColor;
+    if (textColor === '#FCFAE8' || textColor === '#FFFFFF') {
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+      ctx.shadowBlur = 3;
+    } else {
+      ctx.shadowColor = 'rgba(255, 255, 255, 0.5)';
+      ctx.shadowBlur = 2;
+    }
+    const label = lang === 'en' ? (prize.nameEn || prize.nameAr) : prize.nameAr;
+    const shortLabel = label.length > 18 ? label.slice(0, 16) + '..' : label;
+    ctx.fillText(shortLabel, wheelRadius * 0.44, 0);
+    ctx.restore();
 
     ctx.restore();
   });
 
-  // Center Stud / Rim
+  // 3. 3D Center Golden Hub
   ctx.save();
   ctx.beginPath();
-  ctx.arc(cx, cy, 32, 0, 2 * Math.PI);
-  const grad = ctx.createRadialGradient(cx, cy, 5, cx, cy, 32);
-  grad.addColorStop(0, '#FFE68A');
-  grad.addColorStop(0.5, '#D4AF37');
-  grad.addColorStop(1, '#8C6D15');
-  ctx.fillStyle = grad;
+  ctx.arc(cx, cy, 34, 0, 2 * Math.PI);
+  const centerGrad = ctx.createLinearGradient(cx - 34, cy - 34, cx + 34, cy + 34);
+  centerGrad.addColorStop(0, '#FFE891');
+  centerGrad.addColorStop(0.3, '#D4AF37');
+  centerGrad.addColorStop(0.7, '#966E15');
+  centerGrad.addColorStop(1, '#FFF5B8');
+  ctx.fillStyle = centerGrad;
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+  ctx.shadowBlur = 8;
   ctx.fill();
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = '#FFF';
+
+  // Inner deep emerald dome
+  ctx.beginPath();
+  ctx.arc(cx, cy, 26, 0, 2 * Math.PI);
+  const domeGrad = ctx.createRadialGradient(cx - 4, cy - 4, 2, cx, cy, 26);
+  domeGrad.addColorStop(0, '#224027');
+  domeGrad.addColorStop(0.6, '#132817');
+  domeGrad.addColorStop(1, '#08130B');
+  ctx.fillStyle = domeGrad;
+  ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = '#E5C05B';
   ctx.stroke();
+
+  // Center Golden Crest
+  ctx.font = '16px "Segoe UI Emoji", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#FFDF73';
+  ctx.fillText('👑', cx, cy + 1);
+
+  ctx.restore();
   ctx.restore();
 }
 
@@ -805,12 +1074,37 @@ window.updateGameUI = () => {
 
   const spinBtn = document.getElementById('spin-btn');
   const spinActionText = document.getElementById('spin-action-text');
+  const disabledBanner = document.getElementById('game-disabled-banner');
+  const wheelWrap = document.querySelector('.wheel-container') || document.getElementById('fortune-wheel-canvas')?.parentElement;
+
+  const isGameEnabled = state.gameConfig && state.gameConfig.enabled !== false;
+
+  if (!isGameEnabled) {
+    if (disabledBanner) disabledBanner.classList.remove('hidden');
+    if (spinBtn) {
+      spinBtn.classList.add('opacity-40', 'pointer-events-none');
+    }
+    if (spinActionText) {
+      spinActionText.innerText = i18n.currentLang === 'en' ? 'Fortune Wheel Paused' : 'عجلة الحظ متوقفة حالياً';
+    }
+    if (wheelWrap) wheelWrap.style.opacity = '0.4';
+    drawFortuneWheel(wheelCurrentAngle);
+    return;
+  }
+
+  if (disabledBanner) disabledBanner.classList.add('hidden');
+  if (wheelWrap) wheelWrap.style.opacity = '1';
 
   if (attempts <= 0) {
-    if (spinBtn) spinBtn.classList.add('opacity-50');
+    if (spinBtn) {
+      spinBtn.classList.add('opacity-50');
+      spinBtn.classList.remove('pointer-events-none');
+    }
     if (spinActionText) spinActionText.innerText = i18n.currentLang === 'en' ? 'Attempt Used for Today' : 'استنفدتِ محاولة اليوم';
   } else {
-    if (spinBtn) spinBtn.classList.remove('opacity-50');
+    if (spinBtn) {
+      spinBtn.classList.remove('opacity-50', 'opacity-40', 'pointer-events-none');
+    }
     if (spinActionText) spinActionText.innerText = i18n.currentLang === 'en' ? 'Spin Wheel Now' : 'تدوير العجلة الآن';
   }
 
@@ -1379,9 +1673,39 @@ function renderFavorites() {
 // --- Screen 8: Comments & Reviews ---
 async function renderComments() {
   const list = document.getElementById('comments-list');
+  const formWrap = document.getElementById('comment-text')?.closest('.p-4') || document.querySelector('#screen-comments .bg-white');
+  const reviewsEnabled = state.platformSettings?.reviewsEnabled !== false;
+
+  if (formWrap) {
+    if (!reviewsEnabled) {
+      formWrap.style.display = 'none';
+    } else {
+      formWrap.style.display = '';
+    }
+  }
+
   if (!list) return;
 
+  if (!reviewsEnabled) {
+    list.innerHTML = `
+      <div class="py-16 text-center text-primary/50 text-xs italic">
+        <span class="material-symbols-outlined text-3xl block mb-2 opacity-40">comments_disabled</span>
+        نظام التقييمات والتعليقات متوقف حالياً من إدارة المنصة.
+      </div>
+    `;
+    return;
+  }
+
   const reviews = await db.getReviews();
+
+  if (!reviews || reviews.length === 0) {
+    list.innerHTML = `
+      <div class="py-16 text-center text-primary/40 text-xs italic">
+        لا توجد تعليقات منشورة حالياً. شاركينا رأيكِ كأول عميلة!
+      </div>
+    `;
+    return;
+  }
 
   list.innerHTML = reviews.map(c => `
     <div class="p-4 rounded-xl bg-white border border-primary/5 shadow-sm mb-3">
@@ -1390,12 +1714,16 @@ async function renderComments() {
         <span class="text-[9px] bg-primary/10 text-primary px-2 py-0.5 rounded font-bold">${sanitizeHtml(c.storeName || 'منصة نون')}</span>
       </div>
       <p class="text-xs text-primary/70 font-light leading-relaxed">${sanitizeHtml(c.content)}</p>
-      <span class="text-[8px] text-primary/40 mt-2 block">${sanitizeHtml(c.createdAt)}</span>
+      <span class="text-[8px] text-primary/40 mt-2 block font-mono">${sanitizeHtml(c.createdAt)}</span>
     </div>
   `).join('');
 }
 
 window.postComment = async () => {
+  if (state.platformSettings?.reviewsEnabled === false) {
+    showToast("التقييمات متوقفة حالياً", "error");
+    return;
+  }
   const textEl = document.getElementById('comment-text');
   const text = textEl?.value.trim();
   if (!text) {
@@ -1613,7 +1941,8 @@ function startStoryTimer() {
   clearInterval(storyInterval);
   storyProgress = 0;
   const stepTime = 50;
-  const increment = (stepTime / STORY_DURATION) * 100;
+  const currentDuration = ((state.platformSettings?.storyDuration || 6) * 1000);
+  const increment = (stepTime / currentDuration) * 100;
 
   storyInterval = setInterval(() => {
     if (state.isStoryPaused) return;

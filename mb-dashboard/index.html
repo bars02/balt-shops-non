@@ -409,10 +409,30 @@
 
         <!-- ===================== 5. SECTION: COMMENTS (التقييمات) ===================== -->
         <div class="section" id="section-comments">
-            <div class="mb-8">
-                <h2 class="serif text-3xl font-bold text-primary">التقييمات والتعليقات</h2>
-                <p class="text-xs opacity-60 mt-1">مراجعة آراء العميلات وإدارتها لكل متجر.</p>
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+                <div>
+                    <h2 class="serif text-3xl font-bold text-primary">التقييمات والتعليقات</h2>
+                    <p class="text-xs opacity-60 mt-1">التحكم الكامل بتفعيل أو إيقاف التقييمات، ومراجعة آراء العميلات وإخفائها أو حذفها.</p>
+                </div>
             </div>
+
+            <!-- Reviews Master Toggle Card -->
+            <div class="card p-5 mb-6 bg-white border border-accent/20 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h4 class="font-serif text-sm font-bold text-primary mb-1">التحكم العام بنظام التقييمات في المنصة</h4>
+                    <p class="text-[11px] text-primary/60">يمكنكِ تفعيل أو إيقاف خانة كتابة وعرض التقييمات في صفحة المنتجات والشاشة العامة بضغطة واحدة.</p>
+                </div>
+                <div class="flex items-center gap-3 shrink-0">
+                    <label class="flex items-center gap-2 cursor-pointer font-bold text-xs bg-primary/5 px-4 py-2.5 rounded-xl border border-primary/10 hover:bg-primary/10 transition-colors">
+                        <input type="checkbox" id="reviews-active-toggle" checked class="w-4 h-4 text-accent">
+                        <span>تفعيل نظام التقييمات</span>
+                    </label>
+                    <button type="button" onclick="saveReviewsGlobalSetting()" class="btn-gold px-4 py-2.5 rounded-xl text-xs font-bold shadow-md">
+                        حفظ الحالة
+                    </button>
+                </div>
+            </div>
+
             <div id="comments-admin-list" class="space-y-4">
                 <!-- Rendered dynamically -->
             </div>
@@ -420,16 +440,32 @@
 
         <!-- ===================== 6. SECTION: STORIES (ستوريات وقصص المنصة) ===================== -->
         <div class="section" id="section-stories">
-            <div class="flex justify-between items-center mb-8">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
                 <div>
                     <h2 class="serif text-3xl font-bold text-primary">ستوريات وقصص المنصة</h2>
-                    <p class="text-xs opacity-60 mt-1">نشر وإدارة القصص المعروضة عند النقر على شعار المنصة في الواجهة الرئيسية.</p>
+                    <p class="text-xs opacity-60 mt-1">نشر وإدارة القصص المعروضة عند النقر على شعار المنصة في الواجهة الرئيسية وتحديد مدة عرضها.</p>
                 </div>
                 <button class="btn-gold px-5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md" onclick="openStoryModal()">
                     <span class="material-symbols-outlined text-sm">add_circle</span>
                     <span>نشر ستوري جديد</span>
                 </button>
             </div>
+
+            <!-- Story Playback Duration Card -->
+            <div class="card p-5 mb-6 bg-white border border-accent/20 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h4 class="font-serif text-sm font-bold text-primary mb-1">مدة عرض شريحة الستوري (Story Duration)</h4>
+                    <p class="text-[11px] text-primary/60">حددي عدد الثواني التي يظهر فيها كل ستوري قبل الانتقال التلقائي للستوري التالي (الافتراضي 6 ثوانٍ).</p>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    <input type="number" id="story-duration-input" min="2" max="30" value="6" class="input-field w-20 text-center font-bold" dir="ltr">
+                    <span class="text-xs font-bold text-primary/70">ثواني</span>
+                    <button type="button" onclick="saveStoryDurationSetting()" class="btn-gold px-4 py-2.5 rounded-xl text-xs font-bold shadow-md">
+                        حفظ المدة
+                    </button>
+                </div>
+            </div>
+
             <div id="stories-admin-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <!-- Rendered dynamically -->
             </div>
@@ -470,11 +506,13 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="font-bold block mb-1">رقم واتساب المنصة الرئيسي للطلبات</label>
-                            <input type="text" id="settings-whatsapp" class="input-field text-left" dir="ltr" placeholder="9647835544744" required>
+                            <input type="text" id="settings-whatsapp" class="input-field text-left font-mono" dir="ltr" placeholder="9647835544744 أو 07835544744" required>
+                            <p class="text-[10px] text-primary/50 mt-1">يتم تحويل الأرقام العراقية تلقائياً لصيغة واتساب الدولية المعتمدة.</p>
                         </div>
                         <div>
                             <label class="font-bold block mb-1">حساب إنستغرام المنصة</label>
-                            <input type="text" id="settings-instagram" class="input-field text-left" dir="ltr" placeholder="@noon.boutique">
+                            <input type="text" id="settings-instagram" class="input-field text-left" dir="ltr" placeholder="@noon.boutique أو الرابط المباشر">
+                            <p class="text-[10px] text-primary/50 mt-1">يمكنك وضع اسم المستخدم أو الرابط الكامل وسيتم توجيهه مباشرة.</p>
                         </div>
                     </div>
 
@@ -492,6 +530,21 @@
                         </button>
                     </div>
                 </form>
+            </div>
+
+            <!-- Maintenance & Mock Data Purge Card -->
+            <div class="card p-6 max-w-2xl bg-white border border-red-200 mt-6 shadow-sm">
+                <div class="flex items-center gap-3 mb-2 text-red-600">
+                    <span class="material-symbols-outlined text-xl">delete_sweep</span>
+                    <h4 class="font-serif text-sm font-bold">صيانة وتفريغ البيانات التجريبية (Purge Mock Data)</h4>
+                </div>
+                <p class="text-xs text-primary/70 leading-relaxed mb-4">
+                    إذا كانت هناك منتجات تجريبية قديمة أو تعليقات وهمية عالقة في ذاكرة المتصفح، يمكنكِ بنقرة واحدة حذفها وتصفيرها بالكامل لتبقى فقط منتجاتكِ الحقيقية.
+                </p>
+                <button type="button" onclick="purgeAllMockData()" class="btn-outline border-red-300 text-red-600 hover:bg-red-50 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-colors">
+                    <span class="material-symbols-outlined text-sm">cleaning_services</span>
+                    <span>حذف كافة البيانات التجريبية والتنظيف الفوري</span>
+                </button>
             </div>
         </div>
 
@@ -584,10 +637,19 @@
 
 <!-- ===================== MODAL: PRODUCT (إضافة / تعديل منتج) ===================== -->
 <div class="modal-bg" id="product-modal">
-    <div class="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto border border-accent/30 shadow-2xl">
+    <div class="bg-white rounded-3xl p-6 md:p-8 max-w-xl w-full max-h-[90vh] overflow-y-auto border border-accent/30 shadow-2xl">
         <div class="flex justify-between items-center mb-6 border-b pb-3">
-            <h3 class="serif text-xl font-bold text-primary" id="product-modal-title">إضافة قطعة جديدة</h3>
-            <button onclick="closeProductModal()" class="material-symbols-outlined text-primary/50 hover:text-primary">close</button>
+            <div>
+                <h3 class="serif text-xl font-bold text-primary" id="product-modal-title">إضافة قطعة جديدة</h3>
+                <p class="text-[10px] text-primary/50">تعبئة بيانات القطعة وألوانها واستيراد الصور والترجمة التلقائية</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button type="button" onclick="autoTranslateAllProductFields()" class="btn-outline px-3 py-1.5 rounded-xl text-[10px] font-bold text-accent border-accent/50 hover:bg-accent/10 flex items-center gap-1 shadow-sm" title="ترجمة تلقائية لكافة الحقول والألوان بضغطة واحدة">
+                    <span class="material-symbols-outlined text-xs">translate</span>
+                    <span>✨ ترجمة الكل للإنكليزية</span>
+                </button>
+                <button onclick="closeProductModal()" class="material-symbols-outlined text-primary/50 hover:text-primary p-1">close</button>
+            </div>
         </div>
         <form id="product-form" onsubmit="saveProduct(event)" class="space-y-4 text-xs">
             <input type="hidden" id="product-edit-id">
@@ -605,11 +667,11 @@
                         <label class="font-bold block">اسم المنتج بالعربي *</label>
                         <button type="button" onclick="autoTranslateProduct()" class="text-[10px] text-accent font-bold hover:underline flex items-center gap-0.5">✨ ترجمة تلقائية</button>
                     </div>
-                    <input type="text" id="product-name-ar" class="input-field" required>
+                    <input type="text" id="product-name-ar" class="input-field" placeholder="مثال: فستان سهرة ملكي زمردي" required>
                 </div>
                 <div>
                     <label class="font-bold block mb-1">اسم المنتج بالإنجليزي *</label>
-                    <input type="text" id="product-name-en" class="input-field" required>
+                    <input type="text" id="product-name-en" class="input-field" placeholder="Emerald Royal Evening Gown" required>
                 </div>
             </div>
 
@@ -622,35 +684,75 @@
                 </div>
                 <div>
                     <label class="font-bold block mb-1">السعر (د.ع) *</label>
-                    <input type="number" id="product-price" class="input-field text-left" dir="ltr" placeholder="1250000" required>
+                    <input type="number" id="product-price" class="input-field text-left font-mono font-bold" dir="ltr" placeholder="1250000" required>
                 </div>
             </div>
 
+            <!-- Primary Image -->
             <div>
-                <label class="font-bold block mb-1">صورة المنتج *</label>
+                <label class="font-bold block mb-1">الصورة الرئيسية للمنتج (الواجهة) *</label>
                 <div class="flex gap-2">
-                    <input type="text" id="product-image-url" class="input-field flex-1 text-left" dir="ltr" placeholder="images/store_elegance.jpg" required>
+                    <input type="text" id="product-image-url" class="input-field flex-1 text-left font-mono" dir="ltr" placeholder="images/hero_noon.jpg أو رابط مباشر" required>
                     <label class="btn-gold px-3.5 py-2.5 rounded-xl cursor-pointer text-xs flex items-center gap-1 shrink-0 font-bold" title="اختاري صورة من جهازكِ">
                         <span class="material-symbols-outlined text-sm">upload_file</span>
-                        <span>استيراد 📁</span>
+                        <span>استيراد صورة 📁</span>
                         <input type="file" accept="image/*" class="hidden" onchange="handleImageUpload(this, 'product-image-url')">
                     </label>
                 </div>
             </div>
 
+            <!-- Sizes & Presets -->
             <div>
                 <label class="font-bold block mb-1">المقاسات المتوفرة (مفصولة بفواصل)</label>
                 <input type="text" id="product-sizes" class="input-field" placeholder="38, 40, 42, 44 أو S, M, L">
+                <!-- Quick Preset Chips -->
+                <div class="flex flex-wrap items-center gap-1.5 mt-2">
+                    <span class="text-[10px] text-primary/50 font-bold ml-1">إضافة سريعة:</span>
+                    <button type="button" onclick="addQuickSize('S')" class="px-2 py-0.5 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 text-[10px] font-bold">S</button>
+                    <button type="button" onclick="addQuickSize('M')" class="px-2 py-0.5 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 text-[10px] font-bold">M</button>
+                    <button type="button" onclick="addQuickSize('L')" class="px-2 py-0.5 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 text-[10px] font-bold">L</button>
+                    <button type="button" onclick="addQuickSize('XL')" class="px-2 py-0.5 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 text-[10px] font-bold">XL</button>
+                    <button type="button" onclick="addQuickSize('XXL')" class="px-2 py-0.5 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 text-[10px] font-bold">XXL</button>
+                    <button type="button" onclick="addQuickSize('Free Size')" class="px-2 py-0.5 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 text-[10px] font-bold">قياس موحد (Free)</button>
+                    <button type="button" onclick="addQuickSize('36')" class="px-2 py-0.5 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 text-[10px] font-bold">36</button>
+                    <button type="button" onclick="addQuickSize('38')" class="px-2 py-0.5 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 text-[10px] font-bold">38</button>
+                    <button type="button" onclick="addQuickSize('40')" class="px-2 py-0.5 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 text-[10px] font-bold">40</button>
+                    <button type="button" onclick="addQuickSize('42')" class="px-2 py-0.5 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 text-[10px] font-bold">42</button>
+                    <button type="button" onclick="addQuickSize('44')" class="px-2 py-0.5 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 text-[10px] font-bold">44</button>
+                </div>
             </div>
 
+            <!-- Description -->
             <div>
-                <label class="font-bold block mb-1">وصف المنتج</label>
-                <textarea id="product-desc-ar" class="input-field h-16 resize-none" placeholder="تفاصيل القماش والقصة..."></textarea>
+                <label class="font-bold block mb-1">وصف وتفاصيل المنتج (القصة، القماش، المناسبة)</label>
+                <textarea id="product-desc-ar" class="input-field h-16 resize-none" placeholder="تفاصيل القماش الفاخر، قصة الفستان، التطريز الحرفي..."></textarea>
             </div>
 
-            <div class="pt-4 flex gap-3">
-                <button type="submit" class="btn-gold flex-1 py-3 rounded-xl text-xs font-bold">حفظ المنتج</button>
-                <button type="button" onclick="closeProductModal()" class="btn-outline px-6 py-3 rounded-xl text-xs">إلغاء</button>
+            <!-- ================= COLOR VARIATIONS STUDIO ================= -->
+            <div class="p-4 bg-primary/5 rounded-2xl border border-primary/15 space-y-3">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h4 class="font-serif font-bold text-xs text-primary flex items-center gap-1.5">
+                            <span class="material-symbols-outlined text-sm text-accent">palette</span>
+                            <span>استوديو تشكيلات وألوان القطعة (Color Variations)</span>
+                        </h4>
+                        <p class="text-[10px] text-primary/60 mt-0.5">يمكنكِ إضافة أكثر من لون لنفس القطعة، مع تحديد صورة ووصف ومقاسات خاصة بكل لون لتقليبها في صفحة المنتج.</p>
+                    </div>
+                    <button type="button" onclick="addProductVariant()" class="btn-gold px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 shadow-sm shrink-0">
+                        <span class="material-symbols-outlined text-sm">add_circle</span>
+                        <span>إضافة لون جديد</span>
+                    </button>
+                </div>
+
+                <!-- Dynamic Variants Container -->
+                <div id="product-variants-list" class="space-y-3 pt-1">
+                    <!-- Populated dynamically via dashboard.js -->
+                </div>
+            </div>
+
+            <div class="pt-4 flex gap-3 border-t border-primary/10">
+                <button type="submit" class="btn-gold flex-1 py-3.5 rounded-xl text-xs font-bold shadow-lg">حفظ ونشر القطعة</button>
+                <button type="button" onclick="closeProductModal()" class="btn-outline px-6 py-3.5 rounded-xl text-xs">إلغاء</button>
             </div>
         </form>
     </div>

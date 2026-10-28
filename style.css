@@ -177,18 +177,35 @@
 
 /* ═══════ COLOR SWATCHES ═══════ */
 .color-swatch {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
-  border: 2px solid transparent;
+  border: 2px solid rgba(255, 255, 255, 0.8);
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
-.color-swatch:hover,
+.color-swatch:hover {
+  transform: scale(1.12);
+}
 .color-swatch.active {
-  border-color: var(--gold);
-  transform: scale(1.15);
+  border-color: #D4AF37;
+  outline: 2.5px solid #D4AF37;
+  outline-offset: 2.5px;
+  transform: scale(1.2);
+  box-shadow: 0 0 16px rgba(212, 175, 55, 0.6);
+}
+
+/* ═══════ FORTUNE WHEEL RETINA CANVAS ═══════ */
+#fortune-wheel-canvas {
+  width: 340px;
+  height: 340px;
+  max-width: 88vw;
+  max-height: 88vw;
+  border-radius: 50%;
+  box-shadow: 0 12px 45px rgba(0, 0, 0, 0.5), 0 0 30px rgba(212, 175, 55, 0.3);
+  display: block;
+  margin: 0 auto;
 }
 
 /* ═══════ FAVORITE HEART ═══════ */

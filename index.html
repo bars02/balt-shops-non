@@ -299,8 +299,14 @@
         </span>
       </div>
 
-      <!-- Color Swatches -->
-      <div class="flex justify-center gap-3 mt-4 px-6" id="color-swatches"></div>
+      <!-- Color Swatches with Active Color Name -->
+      <div class="px-6 mt-4" id="color-selection-wrap">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[10px] uppercase tracking-widest font-semibold text-primary/70" data-i18n="color_label">الألوان المتوفرة:</span>
+          <span id="product-selected-color-name" class="text-xs font-bold text-accent"></span>
+        </div>
+        <div class="flex items-center gap-3 overflow-x-auto py-1 scrollbar-hide" id="color-swatches"></div>
+      </div>
 
       <div class="px-6 mt-4">
         <p id="product-category" class="text-[10px] font-semibold tracking-widest text-primary/60 uppercase mb-1"></p>
@@ -442,10 +448,17 @@
           </div>
         </div>
 
+        <!-- Disabled Notice (When game is paused in dashboard) -->
+        <div id="game-disabled-banner" class="hidden p-6 rounded-2xl bg-white border border-primary/10 text-center my-6 shadow-sm">
+          <span class="material-symbols-outlined text-4xl text-accent mb-2">lock_clock</span>
+          <h4 class="font-serif text-lg font-bold text-primary mb-1">عجلة الحظ متوقفة حالياً</h4>
+          <p class="text-xs text-primary/60 font-light">يتم تجديد الجوائز وقسائم الشراء، ننتظركِ في السحب القادم!</p>
+        </div>
+
         <!-- Circular Wheel Component -->
-        <div class="wheel-container-wrapper my-6">
+        <div class="wheel-container-wrapper my-6" id="wheel-active-wrapper">
           <div class="wheel-outer-rim">
-            <canvas id="fortune-wheel-canvas" width="320" height="320" class="rounded-full shadow-inner"></canvas>
+            <canvas id="fortune-wheel-canvas" width="340" height="340" class="rounded-full shadow-inner"></canvas>
           </div>
           <div class="wheel-pointer">
             <svg viewBox="0 0 30 38" fill="none" class="w-full h-full">
@@ -635,27 +648,19 @@
 
   </main>
 
-  <!-- 4. BOTTOM NAV (التنقل السلس بين شاشات المنصة) -->
-  <nav class="fixed bottom-0 left-0 right-0 h-16 bg-background/95 backdrop-blur-lg border-t border-primary/10 z-40 flex items-center justify-around px-2 pb-safe" id="bottom-nav">
-    <button class="flex flex-col items-center justify-center w-14 text-primary group nav-btn" data-screen="hub" onclick="navigate('hub')">
-      <span class="material-symbols-outlined text-[22px] font-light group-hover:-translate-y-1 transition-transform mb-0.5">storefront</span>
-      <span class="text-[8px] uppercase tracking-wider font-semibold opacity-80" data-i18n="stores">المتاجر</span>
+  <!-- 4. BOTTOM NAV (التنقل السلس والمختصر بين 3 شاشات رئيسية) -->
+  <nav class="fixed bottom-0 left-0 right-0 h-16 bg-background/95 backdrop-blur-lg border-t border-primary/10 z-40 flex items-center justify-around px-6 pb-safe" id="bottom-nav">
+    <button class="flex flex-col items-center justify-center w-20 text-primary group nav-btn" data-screen="hub" onclick="navigate('hub')">
+      <span class="material-symbols-outlined text-[24px] font-light group-hover:-translate-y-1 transition-transform mb-0.5">storefront</span>
+      <span class="text-[9px] uppercase tracking-wider font-bold" data-i18n="stores">المتاجر</span>
     </button>
-    <button class="flex flex-col items-center justify-center w-14 text-primary/60 group nav-btn" data-screen="collections" onclick="navigate('collections')">
-      <span class="material-symbols-outlined text-[22px] font-light group-hover:-translate-y-1 transition-transform mb-0.5">grid_view</span>
-      <span class="text-[8px] uppercase tracking-wider font-semibold opacity-80" data-i18n="shop">المتجر</span>
+    <button class="flex flex-col items-center justify-center w-20 text-primary/60 group nav-btn" data-screen="profile" onclick="navigate('profile')">
+      <span class="material-symbols-outlined text-[24px] font-light group-hover:-translate-y-1 transition-transform mb-0.5">person</span>
+      <span class="text-[9px] uppercase tracking-wider font-bold" data-i18n="profile">حسابي</span>
     </button>
-    <button class="flex flex-col items-center justify-center w-14 text-primary/60 group nav-btn" data-screen="bag" onclick="navigate('bag')">
-      <span class="material-symbols-outlined text-[22px] font-light group-hover:-translate-y-1 transition-transform mb-0.5">local_mall</span>
-      <span class="text-[8px] uppercase tracking-wider font-semibold opacity-80" data-i18n="bag_nav">السلة</span>
-    </button>
-    <button class="flex flex-col items-center justify-center w-14 text-primary/60 group nav-btn" data-screen="profile" onclick="navigate('profile')">
-      <span class="material-symbols-outlined text-[22px] font-light group-hover:-translate-y-1 transition-transform mb-0.5">person</span>
-      <span class="text-[8px] uppercase tracking-wider font-semibold opacity-80" data-i18n="profile">حسابي</span>
-    </button>
-    <button class="flex flex-col items-center justify-center w-14 text-primary/60 group" onclick="toggleMoreMenu(true)">
-      <span class="material-symbols-outlined text-[22px] font-light group-hover:-translate-y-1 transition-transform mb-0.5">menu</span>
-      <span class="text-[8px] uppercase tracking-wider font-semibold opacity-80" data-i18n="more">المزيد</span>
+    <button class="flex flex-col items-center justify-center w-20 text-primary/60 group" onclick="toggleMoreMenu(true)">
+      <span class="material-symbols-outlined text-[24px] font-light group-hover:-translate-y-1 transition-transform mb-0.5">menu</span>
+      <span class="text-[9px] uppercase tracking-wider font-bold" data-i18n="more">المزيد</span>
     </button>
   </nav>
 
@@ -678,12 +683,11 @@
         <!-- Rendered dynamically -->
       </div>
 
-      <div class="pt-4 mt-3 border-t border-primary/10 flex justify-between items-center">
+      <div class="pt-4 mt-3 border-t border-primary/10 flex justify-center items-center">
         <button class="text-xs text-accent font-semibold flex items-center gap-1 hover:underline" onclick="toggleStoreSwitcher(false); navigate('hub')">
           <span class="material-symbols-outlined text-sm">home</span>
           <span data-i18n="platform_home">رئيسية المنصة</span>
         </button>
-        <a href="mb-dashboard/index.html" class="text-[10px] uppercase tracking-widest text-primary/50 hover:text-accent font-bold">لوحة الإدارة ↗</a>
       </div>
     </div>
   </div>
@@ -730,10 +734,6 @@
           <span class="material-symbols-outlined text-accent">translate</span>
           <span class="text-sm font-medium lang-toggle-text">English</span>
         </button>
-        <a href="mb-dashboard/index.html" class="w-full flex items-center gap-4 p-3.5 rounded-xl hover:bg-primary/5 transition-colors text-right block border-t border-primary/5 mt-2 pt-3">
-          <span class="material-symbols-outlined text-accent">admin_panel_settings</span>
-          <span class="text-sm font-medium">لوحة إدارة المنصة والمتاجر</span>
-        </a>
       </div>
       <div class="mt-6 text-center">
         <p class="text-[10px] uppercase tracking-widest font-semibold opacity-30">NOON Platform | متجر نون متعدد المتاجر</p>
