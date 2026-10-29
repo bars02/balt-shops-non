@@ -2013,26 +2013,48 @@ const boot = async () => {
     if (percentEl) percentEl.innerText = `${val}%`;
   };
 
-  setLoad(25);
+  setLoad(30);
 
-  // 1. Load initial data through secure data layer
-  state.platformSettings = await db.getPlatformSettings();
+  // 1. Concurrent data load with safety timeout (prevents freeze/hang on slow networks)
+  try {
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Network timeout')), 4000)
+    );
+    const fetchAllPromise = Promise.all([
+      db.getPlatformSettings(),
+      db.getStores(),
+      db.getProducts(),
+      db.getGameConfig(),
+      db.getStories()
+    ]);
+
+    const [settings, stores, products, gameCfg, stories] = await Promise.race([
+      fetchAllPromise,
+      timeoutPromise
+    ]);
+
+    state.platformSettings = settings;
+    state.stores = stores;
+    state.products = products;
+    state.gameConfig = gameCfg;
+    state.stories = stories;
+  } catch (err) {
+    console.warn('[NOON] Parallel load timed out or errored, falling back gracefully:', err);
+    state.platformSettings = await db.getPlatformSettings();
+    state.stores = await db.getStores();
+    state.products = await db.getProducts();
+    state.gameConfig = await db.getGameConfig();
+    state.stories = await db.getStories();
+  }
+
+  setLoad(85);
+
   if (state.platformSettings?.logo) {
     document.querySelectorAll('#nav-logo-img, .splash-logo-img, #profile-avatar-img').forEach(img => {
       img.src = state.platformSettings.logo;
     });
   }
   renderHeroContent();
-  setLoad(45);
-
-  state.stores = await db.getStores();
-  setLoad(65);
-
-  state.products = await db.getProducts();
-  setLoad(85);
-
-  state.gameConfig = await db.getGameConfig();
-  state.stories = await db.getStories();
   setLoad(100);
 
   // 2. Initial renders

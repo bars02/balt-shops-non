@@ -152,13 +152,15 @@ export const db = {
   },
 
   // --- PRODUCTS ---
-  async getProducts() {
+  async getProducts(storeId = null) {
     if (this.isCloudReady()) {
       try {
-        const { data, error } = await supabaseClient
+        let q = supabaseClient
           .from('products')
           .select('*')
           .order('id', { ascending: false });
+        if (storeId) q = q.eq('store_id', storeId);
+        const { data, error } = await q;
 
         if (!error && data && data.length > 0) {
           const prods = data.map(p => ({
@@ -181,7 +183,9 @@ export const db = {
             sizes: Array.isArray(p.sizes) ? p.sizes : ['Standard'],
             available: p.is_available !== false
           }));
-          localStorage.setItem('noon_products', JSON.stringify(prods));
+          if (!storeId) {
+            localStorage.setItem('noon_products', JSON.stringify(prods));
+          }
           return prods;
         }
       } catch (e) {
@@ -196,7 +200,9 @@ export const db = {
         return prods;
       } catch(e) {}
     }
-    return initialProducts;
+    let fallback = initialProducts;
+    if (storeId) fallback = fallback.filter(p => p.storeId === storeId);
+    return fallback;
   },
 
   async saveProduct(prod) {
@@ -573,12 +579,16 @@ export const db = {
           store_id: story.storeId,
           title_ar: story.titleAr,
           title_en: story.titleEn,
+          caption_ar: story.captionAr || story.titleAr,
+          caption_en: story.captionEn || '',
           media_url: story.image,
           link_target: story.storeId,
+          cta_ar: story.ctaAr || 'استعراض التشكيلة',
+          cta_en: story.ctaEn || 'Explore Collection',
           is_active: story.active !== false
         });
       } catch (e) {
-        console.warn('[NOON DB] Cloud story sync skipped (table may not exist yet):', e);
+        console.warn('[NOON DB] Cloud story sync error:', e);
       }
     }
     return local;
@@ -668,16 +678,21 @@ export const db = {
           updated_at: new Date().toISOString()
         });
       } catch (e) {
-        console.warn('[NOON DB] Cloud platform settings sync skipped:', e);
+        console.warn('[NOON DB] Cloud platform settings sync error:', e);
       }
     }
     return updated;
   },
 
   // --- CLIENT AUTHENTICATION ---
-  async clientSignUp(email, password, displayName) {
+  async clientSignUp(email, password, displayNameOrOptions) {
+    const displayName = typeof displayNameOrOptions === 'object'
+      ? (displayNameOrOptions?.display_name || displayNameOrOptions?.name || '')
+      : (displayNameOrOptions || '');
+    const fallbackName = displayName || email.split('@')[0];
+
     if (!this.isCloudReady()) {
-      const mockUser = { id: 'u_' + Date.now(), email, name: displayName || email.split('@')[0], isGuest: false };
+      const mockUser = { id: 'u_' + Date.now(), email, name: fallbackName, isGuest: false };
       localStorage.setItem('noon_user', JSON.stringify(mockUser));
       return { user: mockUser, error: null };
     }
@@ -685,13 +700,13 @@ export const db = {
       const { data, error } = await supabaseClient.auth.signUp({
         email,
         password,
-        options: { data: { display_name: displayName } }
+        options: { data: { display_name: fallbackName } }
       });
       if (error) return { user: null, error: error.message };
       const user = {
         id: data.user.id,
         email: data.user.email,
-        name: displayName || data.user.user_metadata?.display_name || email.split('@')[0],
+        name: fallbackName,
         isGuest: false
       };
       localStorage.setItem('noon_user', JSON.stringify(user));

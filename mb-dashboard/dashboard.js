@@ -1504,11 +1504,13 @@ window.autoTranslateProduct = async () => {
 
 // --- Init Dashboard ---
 async function init() {
-    stores = await db.getStores();
-    products = await db.getProducts();
-    gameConfig = await db.getGameConfig();
-    stories = await db.getStories();
-    platformSettings = await db.getPlatformSettings();
+    [stores, products, gameConfig, stories, platformSettings] = await Promise.all([
+        db.getStores(),
+        db.getProducts(),
+        db.getGameConfig(),
+        db.getStories(),
+        db.getPlatformSettings()
+    ]);
     showSection('stores');
 }
 
