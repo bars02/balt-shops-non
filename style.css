@@ -177,23 +177,33 @@
 
 /* ═══════ COLOR SWATCHES ═══════ */
 .color-swatch {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.8);
+  border: 2px solid rgba(255, 255, 255, 0.95);
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
 }
 .color-swatch:hover {
-  transform: scale(1.12);
+  transform: scale(1.08);
 }
 .color-swatch.active {
-  border-color: #D4AF37;
-  outline: 2.5px solid #D4AF37;
-  outline-offset: 2.5px;
-  transform: scale(1.2);
-  box-shadow: 0 0 16px rgba(212, 175, 55, 0.6);
+  border-color: #ffffff;
+  box-shadow: 0 0 0 3px #D4AF37, 0 4px 12px rgba(212, 175, 55, 0.4);
+  transform: scale(1.1);
+}
+.color-swatch.primary-original {
+  background: linear-gradient(135deg, #4b5563, #374151);
+  color: #fff;
 }
 
 /* ═══════ FORTUNE WHEEL RETINA CANVAS ═══════ */

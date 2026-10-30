@@ -406,25 +406,37 @@ window.viewProduct = (id) => {
     if (colorWrapper) colorWrapper.classList.remove('hidden');
     if (swatchContainer) swatchContainer.classList.remove('hidden');
 
-    // Default to first variant
-    const firstVariant = p.colors[0];
-    state.currentColor = firstVariant;
+    // Default to primary original product
+    state.currentColor = null;
 
     if (colorNameLabel) {
-      const cLabel = typeof firstVariant === 'object'
-        ? (lang === 'en' ? (firstVariant.colorNameEn || firstVariant.name || '') : (firstVariant.colorNameAr || firstVariant.ar || ''))
-        : '';
-      colorNameLabel.innerText = cLabel ? `(${cLabel})` : '';
+      colorNameLabel.innerText = lang === 'en' ? '(Original)' : '(اللون الأساسي)';
     }
 
     if (swatchContainer) {
-      swatchContainer.innerHTML = p.colors.map((c, i) => {
+      // 1. Primary Grey Swatch Button (يمثل المنتج الأساسي الأول المعروض للرجوع إليه دائماً)
+      const originalBtnHtml = `
+        <button class="color-swatch active primary-original" 
+                title="${lang === 'en' ? 'Original / Primary' : 'اللون الأساسي / العرض الأصلي'}" 
+                onclick="switchProductToOriginal(this)">
+          <span class="text-[9px] text-white/90 font-bold select-none">★</span>
+        </button>
+      `;
+
+      // 2. Additional Color Variant Swatches
+      const variantsHtml = p.colors.map((c, i) => {
         const hex = typeof c === 'object' ? (c.hex || '#1B2E1D') : String(c);
         const name = typeof c === 'object' ? (lang === 'en' ? (c.colorNameEn || c.name || '') : (c.colorNameAr || c.ar || '')) : '';
         return `
-          <button class="color-swatch ${i === 0 ? 'active' : ''}" style="background-color:${sanitizeHtml(hex)}" title="${sanitizeHtml(name)}" onclick="switchProductColorVariant(${i}, this)"></button>
+          <button class="color-swatch" 
+                  style="background-color:${sanitizeHtml(hex)}" 
+                  title="${sanitizeHtml(name || (lang === 'en' ? `Color ${i+1}` : `لون ${i+1}`))}" 
+                  onclick="switchProductColorVariant(${i}, this)">
+          </button>
         `;
       }).join('');
+
+      swatchContainer.innerHTML = originalBtnHtml + variantsHtml;
     }
   } else {
     state.currentColor = null;
@@ -460,6 +472,50 @@ window.viewProduct = (id) => {
 
   renderProductReviews(id);
   navigate('product');
+};
+
+// Switch back to Primary / Original Product details and gallery
+window.switchProductToOriginal = (btn) => {
+  const p = state.products.find(x => x.id === state.currentProductId);
+  if (!p) return;
+  state.currentColor = null;
+  const lang = i18n.currentLang;
+
+  // Active ring styling
+  document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+
+  // Update label
+  const colorNameLabel = document.getElementById('product-selected-color-name');
+  if (colorNameLabel) {
+    colorNameLabel.innerText = lang === 'en' ? '(Original)' : '(اللون الأساسي)';
+  }
+
+  // Restore main gallery
+  const gallery = document.getElementById('product-gallery');
+  const images = (p.images && p.images.length > 0) ? p.images : (p.image ? [p.image] : []);
+  if (gallery && images.length > 0) {
+    gallery.innerHTML = images.map(img => `
+      <div class="snap-start w-full h-full flex-shrink-0 animate-fade-in">
+        <img src="${sanitizeHtml(img)}" class="w-full h-full object-cover object-top" alt="${sanitizeHtml(p.nameAr)}" onerror="this.src='images/hero_noon.jpg'">
+      </div>
+    `).join('');
+  }
+
+  // Restore original description
+  const descEl = document.getElementById('product-desc');
+  if (descEl) {
+    descEl.innerText = lang === 'en' ? p.descriptionEn : p.descriptionAr;
+  }
+
+  // Restore original sizes
+  const sizeGrid = document.getElementById('size-selector');
+  if (sizeGrid && p.sizes) {
+    sizeGrid.innerHTML = p.sizes.map((s, i) => `
+      <button class="py-2.5 border ${i === 0 ? 'bg-primary text-background' : 'border-primary/15 text-primary'} text-[10px] font-bold rounded-lg transition-all" onclick="selectSize(this)">${sanitizeHtml(s)}</button>
+    `).join('');
+    state.currentSize = p.sizes[0];
+  }
 };
 
 window.switchProductColorVariant = (index, btn) => {
@@ -2013,6 +2069,17 @@ const boot = async () => {
     if (percentEl) percentEl.innerText = `${val}%`;
   };
 
+  // Purge obsolete demo cache to start with a 100% clean slate
+  if (localStorage.getItem('noon_clean_slate_v1') !== 'true') {
+    localStorage.removeItem('noon_products');
+    localStorage.removeItem('noon_stories');
+    localStorage.removeItem('noon_platform_settings');
+    localStorage.removeItem('noon_reviews');
+    localStorage.removeItem('noon_orders');
+    localStorage.removeItem('noon_cart');
+    localStorage.setItem('noon_clean_slate_v1', 'true');
+  }
+
   setLoad(30);
 
   // 1. Concurrent data load with safety timeout (prevents freeze/hang on slow networks)
@@ -2049,10 +2116,18 @@ const boot = async () => {
 
   setLoad(85);
 
+  const navBrandText = document.getElementById('nav-brand-text');
   if (state.platformSettings?.logo) {
     document.querySelectorAll('#nav-logo-img, .splash-logo-img, #profile-avatar-img').forEach(img => {
       img.src = state.platformSettings.logo;
+      img.style.display = 'block';
     });
+    if (navBrandText) navBrandText.style.display = 'none';
+  } else {
+    document.querySelectorAll('#nav-logo-img').forEach(img => {
+      img.style.display = 'none';
+    });
+    if (navBrandText) navBrandText.style.display = 'block';
   }
   renderHeroContent();
   setLoad(100);

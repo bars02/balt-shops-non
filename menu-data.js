@@ -3,34 +3,31 @@
 export const platformInfo = {
   nameAr: "منصة نون",
   nameEn: "NOON Platform",
-  logo: "images/logo.png",
-  sloganAr: "وجهتكِ الأولى للأناقة النسائية الراقية",
-  sloganEn: "The Premier Destination for Women's Luxury Fashion"
+  logo: "",
+  sloganAr: "",
+  sloganEn: ""
 };
 
 // 1. STORES REGISTRY (المتاجر الثلاثة المستقلة)
 export const initialStores = [
   {
     id: "elegance",
-    nameAr: "إليجانس نون",
-    nameEn: "Elegance NOON",
+    nameAr: "بيلوز",
+    nameEn: "B.Loz",
     slug: "elegance",
-    badgeAr: "أزياء السهرة والراقية",
-    badgeEn: "Couture & Evening",
-    descriptionAr: "أرقى فساتين السهرة والأزياء المخملية الفاخرة المصممة خصيصاً للمناسبات الاستثنائية.",
-    descriptionEn: "Haute couture evening gowns and luxury velvet dresses tailored for unforgettable moments.",
-    banner: "images/store_elegance.jpg",
-    avatar: "images/logo.png",
-    whatsapp: "9647835544744",
-    instagram: "@elegance.noon",
-    facebook: "EleganceNoonFashion",
+    badgeAr: "أزياء ولانجري",
+    badgeEn: "Lingerie & Couture",
+    descriptionAr: "تصاميم تُبرز جمالكِ وتمنحكِ الراحة والأنوثة التي تستحقينها",
+    descriptionEn: "B.Loz bespoke collection.",
+    banner: "",
+    avatar: "",
+    whatsapp: "",
+    instagram: "",
+    facebook: "",
     order: 1,
     active: true,
     categories: [
-      { id: "all", titleAr: "الكل", titleEn: "All" },
-      { id: "gowns", titleAr: "فساتين سهرة", titleEn: "Evening Gowns" },
-      { id: "cocktail", titleAr: "أزياء كوكتيل", titleEn: "Cocktail Dresses" },
-      { id: "velvet", titleAr: "مخمل وتطريز", titleEn: "Velvet & Embroidery" }
+      { id: "all", titleAr: "الكل", titleEn: "All" }
     ]
   },
   {
@@ -40,20 +37,17 @@ export const initialStores = [
     slug: "casual",
     badgeAr: "ملابس يومية عصرية",
     badgeEn: "Modern Casual",
-    descriptionAr: "أحدث صيحات الملابس اليومية العصرية بتصاميم مريحة وأقمشة لِنين وحريرية راقية.",
-    descriptionEn: "Contemporary chic daily wear, breathable linen sets and elegant silk blouses.",
-    banner: "images/store_casual.jpg",
-    avatar: "images/logo.png",
-    whatsapp: "9647835544744",
-    instagram: "@casual.noon",
-    facebook: "CasualNoonFashion",
+    descriptionAr: "أحدث صيحات الملابس اليومية العصرية بتصاميم مريحة.",
+    descriptionEn: "Contemporary chic daily wear.",
+    banner: "",
+    avatar: "",
+    whatsapp: "",
+    instagram: "",
+    facebook: "",
     order: 2,
     active: true,
     categories: [
-      { id: "all", titleAr: "الكل", titleEn: "All" },
-      { id: "linen_sets", titleAr: "أطقم لِنين", titleEn: "Linen Sets" },
-      { id: "blouses", titleAr: "بلايز وقمصان", titleEn: "Blouses & Shirts" },
-      { id: "blazers", titleAr: "بليزرات أنيقة", titleEn: "Chic Blazers" }
+      { id: "all", titleAr: "الكل", titleEn: "All" }
     ]
   },
   {
@@ -63,20 +57,17 @@ export const initialStores = [
     slug: "royal",
     badgeAr: "عبايات ملكية وتراث",
     badgeEn: "Royal Abayas",
-    descriptionAr: "عبايات ملكية وبشوت مطرزة يدوياً بخيوط الذهب، تجمع بين الأصالة والترف المعاصر.",
-    descriptionEn: "Hand-embroidered royal abayas and bishts adorned with gold threads and heritage luxury.",
-    banner: "images/store_royal.jpg",
-    avatar: "images/logo.png",
-    whatsapp: "9647835544744",
-    instagram: "@royal.noon",
-    facebook: "RoyalNoonFashion",
+    descriptionAr: "عبايات ملكية وبشوت مطرزة يدوياً.",
+    descriptionEn: "Hand-embroidered royal abayas and bishts.",
+    banner: "",
+    avatar: "",
+    whatsapp: "",
+    instagram: "",
+    facebook: "",
     order: 3,
     active: true,
     categories: [
-      { id: "all", titleAr: "الكل", titleEn: "All" },
-      { id: "royal_abayas", titleAr: "عبايات ملكية", titleEn: "Royal Abayas" },
-      { id: "embroidered_bishts", titleAr: "بشوت مطرزة", titleEn: "Embroidered Bishts" },
-      { id: "silk_scarves", titleAr: "شالات وأوشحة", titleEn: "Silk Scarves" }
+      { id: "all", titleAr: "الكل", titleEn: "All" }
     ]
   }
 ];

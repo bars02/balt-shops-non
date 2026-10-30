@@ -76,11 +76,11 @@ export const db = {
             badgeEn: s.badge_en,
             descriptionAr: s.description_ar,
             descriptionEn: s.description_en,
-            banner: s.banner,
-            avatar: s.avatar || 'images/logo.png',
-            whatsapp: s.whatsapp,
-            instagram: s.instagram,
-            facebook: s.facebook,
+            banner: s.banner || '',
+            avatar: s.avatar || '',
+            whatsapp: s.whatsapp || '',
+            instagram: s.instagram || '',
+            facebook: s.facebook || '',
             order: s.display_order,
             active: s.is_active,
             categories: []
@@ -525,9 +525,9 @@ export const db = {
           .eq('is_active', true)
           .order('id', { ascending: false });
 
-        if (!error && data && data.length > 0) {
+        if (!error && data) {
           const storeNames = {
-            'elegance': 'إليجانس نون',
+            'elegance': 'بيلوز',
             'casual': 'كاجوال نون',
             'royal': 'رويال نون'
           };
@@ -536,7 +536,7 @@ export const db = {
             storeId: s.store_id || 'platform',
             storeNameAr: storeNames[s.store_id] || s.store_name_ar || 'منصة نون',
             storeNameEn: s.store_name_en || 'NOON Platform',
-            avatar: s.avatar || 'images/logo.png',
+            avatar: s.avatar || '',
             titleAr: sanitizeHtml(s.title_ar),
             titleEn: sanitizeHtml(s.title_en || s.title_ar),
             captionAr: sanitizeHtml(s.caption_ar || s.title_ar),
@@ -556,10 +556,10 @@ export const db = {
       }
     }
     const local = localStorage.getItem('noon_stories');
-    if (local) {
+    if (local !== null) {
       try { return JSON.parse(local); } catch (e) {}
     }
-    return initialStories;
+    return [];
   },
 
   async saveStory(story) {
@@ -615,21 +615,21 @@ export const db = {
         const { data, error } = await supabaseClient.from('platform_settings').select('*').eq('id', 1).single();
         if (!error && data) {
           const s = {
-            logo: data.logo_url || initialPlatformSettings.logo,
-            whatsapp: data.whatsapp || initialPlatformSettings.whatsapp,
-            instagram: data.instagram || initialPlatformSettings.instagram,
-            deliveryFee: Number(data.delivery_fee) || 5000,
+            logo: data.logo_url || '',
+            whatsapp: data.whatsapp || '',
+            instagram: data.instagram || '',
+            deliveryFee: Number(data.delivery_fee) || 0,
             currencyAr: data.currency_ar || 'د.ع',
             currencyEn: data.currency_en || 'IQD',
-            heroBg: data.hero_bg || initialPlatformSettings.heroBg,
-            heroBadgeAr: data.hero_badge_ar || initialPlatformSettings.heroBadgeAr,
-            heroBadgeEn: data.hero_badge_en || initialPlatformSettings.heroBadgeEn,
-            heroTitleAr: data.hero_title_ar || initialPlatformSettings.heroTitleAr,
-            heroTitleEn: data.hero_title_en || initialPlatformSettings.heroTitleEn,
-            heroDescAr: data.hero_desc_ar || initialPlatformSettings.heroDescAr,
-            heroDescEn: data.hero_desc_en || initialPlatformSettings.heroDescEn,
-            heroBtnAr: data.hero_btn_ar || initialPlatformSettings.heroBtnAr,
-            heroBtnEn: data.hero_btn_en || initialPlatformSettings.heroBtnEn,
+            heroBg: data.hero_bg || '',
+            heroBadgeAr: data.hero_badge_ar || '',
+            heroBadgeEn: data.hero_badge_en || '',
+            heroTitleAr: data.hero_title_ar || '',
+            heroTitleEn: data.hero_title_en || '',
+            heroDescAr: data.hero_desc_ar || '',
+            heroDescEn: data.hero_desc_en || '',
+            heroBtnAr: data.hero_btn_ar || '',
+            heroBtnEn: data.hero_btn_en || '',
             wheelPrizes: data.wheel_prizes || null,
             storyDuration: Number(data.story_duration) || 6,
             reviewsEnabled: data.reviews_enabled !== false
@@ -778,78 +778,26 @@ export const db = {
   }
 };
 
-// Initial Platform Default Settings
+// Initial Platform Default Settings (فارغ لتمكين البدء من الصفر تماماً)
 export const initialPlatformSettings = {
-  logo: 'images/logo.png',
-  whatsapp: '9647835544744',
-  instagram: '@noon.boutique',
-  deliveryFee: 5000,
+  logo: '',
+  whatsapp: '',
+  instagram: '',
+  deliveryFee: 0,
   currencyAr: 'د.ع',
   currencyEn: 'IQD',
-  heroBg: 'images/hero_noon.jpg',
-  heroBadgeAr: 'منصة نون للأزياء النسائية',
-  heroBadgeEn: "WOMEN'S MULTI-STORE PLATFORM",
-  heroTitleAr: 'أناقة نسائية لا متناهية',
-  heroTitleEn: 'Timeless Fluidity & Grace',
-  heroDescAr: 'تصفحي أرقى دور الأزياء النسائية المستقلة تحت سقف واحد',
-  heroDescEn: "Discover distinct independent women's fashion boutiques under one roof",
-  heroBtnAr: 'اكتشفي المتاجر',
-  heroBtnEn: 'EXPLORE BOUTIQUES',
+  heroBg: '',
+  heroBadgeAr: '',
+  heroBadgeEn: '',
+  heroTitleAr: '',
+  heroTitleEn: '',
+  heroDescAr: '',
+  heroDescEn: '',
+  heroBtnAr: '',
+  heroBtnEn: '',
   storyDuration: 6,
   reviewsEnabled: true
 };
 
-// Initial Luxury Fashion Stories
-export const initialStories = [
-  {
-    id: 1,
-    storeId: "elegance",
-    storeNameAr: "إليجانس نون",
-    storeNameEn: "Elegance NOON",
-    avatar: "images/logo.png",
-    titleAr: "وصول تشكيلة السهرة الاستثنائية لعام 2026",
-    titleEn: "Haute Couture Evening Gala Gowns",
-    captionAr: "أرقى فساتين السهرة من الكريب الحريري والمخمل الإيطالي المطرز بالخيوط الذهبية يدوياً للمناسبات الكبرى.",
-    captionEn: "Sculpted silk crepe gowns hand-finished with gold metallic thread.",
-    image: "images/store_elegance.jpg",
-    ctaAr: "استعراض فساتين السهرة",
-    ctaEn: "Explore Gowns",
-    ctaAction: "store:elegance",
-    time: "منذ ساعتين",
-    active: true
-  },
-  {
-    id: 2,
-    storeId: "royal",
-    storeNameAr: "رويال نون",
-    storeNameEn: "Royal NOON",
-    avatar: "images/logo.png",
-    titleAr: "عبايات وبشوت ملكية بتطريز الزري الأصيل",
-    titleEn: "Royal Gold-Zari Abayas & Bishts",
-    captionAr: "فخامة وأصالة التراث العربي المعاصر بأقمشة ملكية فاخرة تناسب كافة الأعياد والاستقبالات.",
-    captionEn: "Hand-embroidered royal abayas and bishts adorned with gold threads.",
-    image: "images/store_royal.jpg",
-    ctaAr: "تسوق عبايات رويال",
-    ctaEn: "Shop Royal Abayas",
-    ctaAction: "store:royal",
-    time: "منذ 4 ساعات",
-    active: true
-  },
-  {
-    id: 3,
-    storeId: "casual",
-    storeNameAr: "كاجوال نون",
-    storeNameEn: "Casual NOON",
-    avatar: "images/logo.png",
-    titleAr: "أطقم اللِنين العاجية والحرير الطبيعي",
-    titleEn: "Pure European Linen & Silk Co-ords",
-    captionAr: "إطلالات يومية ناعمة بقصات مريحة وباردة تمنحك الأناقة والانتعاش طوال اليوم.",
-    captionEn: "Contemporary chic daily wear, breathable linen sets and fluid blouses.",
-    image: "images/store_casual.jpg",
-    ctaAr: "اكتشفي كاجوال نون",
-    ctaEn: "Explore Casual NOON",
-    ctaAction: "store:casual",
-    time: "اليوم",
-    active: true
-  }
-];
+// Initial Luxury Fashion Stories (فارغ لمسح الداتا الافتراضية)
+export const initialStories = [];
