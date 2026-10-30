@@ -241,11 +241,23 @@ CREATE POLICY "Admins can view and manage all orders" ON public.orders
 -- 10.6 GAME PRIZES & SETTINGS POLICIES
 DROP POLICY IF EXISTS "Public can view active prizes" ON public.game_prizes;
 CREATE POLICY "Public can view active prizes" ON public.game_prizes
-    FOR SELECT USING (is_active = TRUE);
+    FOR SELECT USING (is_active = TRUE OR auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Admins can manage game prizes" ON public.game_prizes;
+CREATE POLICY "Admins can manage game prizes" ON public.game_prizes
+    FOR ALL TO authenticated
+    USING (TRUE)
+    WITH CHECK (TRUE);
 
 DROP POLICY IF EXISTS "Public can view game settings" ON public.game_settings;
 CREATE POLICY "Public can view game settings" ON public.game_settings
     FOR SELECT USING (TRUE);
+
+DROP POLICY IF EXISTS "Admins can manage game settings" ON public.game_settings;
+CREATE POLICY "Admins can manage game settings" ON public.game_settings
+    FOR ALL TO authenticated
+    USING (TRUE)
+    WITH CHECK (TRUE);
 
 DROP POLICY IF EXISTS "Public can record daily spins" ON public.daily_spins;
 CREATE POLICY "Public can record daily spins" ON public.daily_spins
@@ -254,6 +266,12 @@ CREATE POLICY "Public can record daily spins" ON public.daily_spins
 DROP POLICY IF EXISTS "Public can view own daily spins" ON public.daily_spins;
 CREATE POLICY "Public can view own daily spins" ON public.daily_spins
     FOR SELECT USING (TRUE);
+
+DROP POLICY IF EXISTS "Admins can manage daily spins" ON public.daily_spins;
+CREATE POLICY "Admins can manage daily spins" ON public.daily_spins
+    FOR ALL TO authenticated
+    USING (TRUE)
+    WITH CHECK (TRUE);
 
 -- 11.7 STORIES POLICIES
 DROP POLICY IF EXISTS "Public can view active stories" ON public.stories;

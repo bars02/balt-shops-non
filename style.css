@@ -50,30 +50,48 @@
 
 /* ═══════ HERITAGE ORNAMENT ═══════ */
 .heritage-ornament {
-  @apply relative inline-block px-12;
+  position: relative;
+  display: inline-block;
+  padding-left: 3rem;
+  padding-right: 3rem;
 }
 .heritage-ornament::before, .heritage-ornament::after {
   content: '';
-  @apply absolute top-1/2 -translate-y-1/2 w-10 h-[1px] bg-gold/30;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2.5rem;
+  height: 1px;
+  background: rgba(212, 175, 55, 0.3);
 }
-.heritage-ornament::before { @apply left-0; }
-.heritage-ornament::after { @apply right-0; }
+.heritage-ornament::before { left: 0; }
+.heritage-ornament::after { right: 0; }
 
 /* ═══════ GOLD BUTTON ═══════ */
 .gold-btn-premium {
-  @apply bg-gold text-deep-green relative overflow-hidden transition-all duration-700;
+  background-color: var(--gold);
+  color: var(--deep-green);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.7s ease;
   box-shadow: 0 10px 30px -10px rgba(212, 175, 55, 0.3);
 }
 .gold-btn-premium:hover {
-  @apply bg-deep-green text-cream scale-[1.02];
+  background-color: var(--deep-green);
+  color: var(--cream);
+  transform: scale(1.02);
   box-shadow: 0 20px 40px -15px rgba(27, 46, 29, 0.4);
 }
 .gold-btn-premium::after {
   content: '';
-  @apply absolute inset-0 bg-white/20 -translate-x-full skew-x-[-20deg] transition-transform duration-1000 ease-in-out;
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateX(-100%) skewX(-20deg);
+  transition: transform 1s ease-in-out;
 }
 .gold-btn-premium:hover::after {
-  @apply translate-x-[250%];
+  transform: translateX(250%) skewX(-20deg);
 }
 
 /* ═══════ LUXURY GRID ═══════ */
@@ -145,34 +163,6 @@
   text-transform: uppercase;
   letter-spacing: 0.2em;
   text-shadow: 0 2px 20px rgba(0,0,0,0.3);
-}
-
-/* ═══════ CENTER FOCUS GRID ═══════ */
-.focus-grid-item {
-  position: relative;
-  overflow: hidden;
-  transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.focus-grid-item .product-info {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 1.5rem;
-  background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);
-  transform: translateY(100%);
-  opacity: 0;
-  transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.focus-grid-item.is-focused .product-info {
-  transform: translateY(0);
-  opacity: 1;
-}
-.focus-grid-item:not(.is-focused) {
-  filter: brightness(0.7);
-}
-.focus-grid-item.is-focused {
-  filter: brightness(1);
 }
 
 /* ═══════ COLOR SWATCHES ═══════ */
@@ -553,7 +543,8 @@
 }
 .focus-grid-item .product-info {
   position: absolute;
-  inset-x: 0;
+  left: 0;
+  right: 0;
   bottom: 0;
   padding: 12px 10px 10px;
   background: linear-gradient(to top, rgba(15, 26, 17, 0.95) 0%, rgba(15, 26, 17, 0.7) 60%, transparent 100%);

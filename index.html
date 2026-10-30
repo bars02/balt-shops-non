@@ -66,14 +66,23 @@
       },
     }
   </script>
-  <style type="text/tailwindcss">
-    @layer base {
-      body { @apply bg-background text-primary font-sans antialiased overflow-x-hidden; }
-      h1, h2, h3, h4, h5, h6 { @apply font-serif; }
-      [dir="rtl"] { font-family: "IBM Plex Sans Arabic", "Manrope", sans-serif; }
-      [dir="rtl"] h1, [dir="rtl"] h2, [dir="rtl"] h3, [dir="rtl"] h4, [dir="rtl"] h5, [dir="rtl"] h6 {
-        font-family: "Noto Serif Arabic", "Noto Serif", serif;
-      }
+  <style>
+    body {
+      background-color: #FCFAE8;
+      color: #1B2E1D;
+      font-family: "IBM Plex Sans Arabic", "Manrope", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow-x: hidden;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      font-family: "Noto Serif", "Noto Serif Arabic", serif;
+    }
+    [dir="rtl"] {
+      font-family: "IBM Plex Sans Arabic", "Manrope", sans-serif;
+    }
+    [dir="rtl"] h1, [dir="rtl"] h2, [dir="rtl"] h3, [dir="rtl"] h4, [dir="rtl"] h5, [dir="rtl"] h6 {
+      font-family: "Noto Serif Arabic", "Noto Serif", serif;
     }
   </style>
   <link rel="stylesheet" href="./style.css" />
@@ -163,7 +172,7 @@
             <div>
               <div class="flex items-center gap-2">
                 <span class="font-serif text-white text-sm font-semibold" data-i18n="game_title">لعبة اليوم</span>
-                <span class="bg-accent/20 text-accent text-[8px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">سحب فوري</span>
+                <span id="hub-game-badge" class="bg-accent/20 text-accent text-[8px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">سحب فوري</span>
               </div>
               <p class="text-white/70 text-[10px] mt-0.5" data-i18n="game_subtitle">اسحبي العتلة الذهبية واربحي قسائم شراء وجوائز يومية!</p>
             </div>
@@ -221,7 +230,7 @@
         <div class="h-44 w-full relative overflow-hidden">
           <img id="current-store-banner" src="images/store_elegance.jpg" class="w-full h-full object-cover">
           <div class="absolute inset-0 bg-gradient-to-t from-primary/90 via-primary/40 to-transparent"></div>
-          <button class="absolute top-4 left-4 z-10 w-9 h-9 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center text-white" onclick="navigate('hub')" title="العودة للمنصة">
+          <button class="absolute top-4 left-4 z-10 w-9 h-9 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-black/60 transition-colors" onclick="goBack('hub')" title="رجوع">
             <span class="material-symbols-outlined text-sm font-light">arrow_back</span>
           </button>
           <div class="absolute bottom-3 left-4 right-4 flex items-center justify-between text-white">
@@ -278,7 +287,7 @@
          SCREEN 3: PRODUCT DETAIL (تفاصيل المنتج مع المقاسات والألوان)
          ════════════════════════════════════════════════════════ -->
     <section id="screen-product" class="screen relative bg-background pb-28">
-      <button class="absolute top-4 left-4 z-10 w-10 h-10 bg-background/60 backdrop-blur-md rounded-full flex items-center justify-center text-primary" onclick="navigate('collections')">
+      <button class="absolute top-4 left-4 z-10 w-10 h-10 bg-background/60 backdrop-blur-md rounded-full flex items-center justify-center text-primary hover:bg-background/90 transition-colors shadow-sm" onclick="goBack('collections')" title="رجوع">
         <span class="material-symbols-outlined text-lg font-light">arrow_back</span>
       </button>
       <button id="product-fav-btn" class="fav-btn absolute top-4 right-4 z-10" onclick="toggleFavorite()">
@@ -383,7 +392,7 @@
          ════════════════════════════════════════════════════════ -->
     <section id="screen-bag" class="screen bg-background">
       <div class="px-6 py-4 flex items-center justify-between border-b border-primary/5 sticky top-0 bg-background/80 backdrop-blur-md z-10">
-        <button class="material-symbols-outlined text-xl font-light" onclick="navigate('collections')">arrow_back</button>
+        <button class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-primary/5 transition-colors material-symbols-outlined text-xl font-light" onclick="goBack('collections')" title="رجوع">arrow_back</button>
         <h2 class="font-serif text-lg" data-i18n="refined_list">سلة التسوق</h2>
         <div class="w-10"></div>
       </div>
@@ -427,7 +436,7 @@
          ════════════════════════════════════════════════════════ -->
     <section id="screen-game" class="screen bg-background pb-28">
       <div class="px-6 py-4 flex items-center justify-between border-b border-primary/5 sticky top-0 bg-background/80 backdrop-blur-md z-10">
-        <button class="material-symbols-outlined text-xl font-light" onclick="navigate('hub')">arrow_back</button>
+        <button class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-primary/5 transition-colors material-symbols-outlined text-xl font-light" onclick="goBack('hub')" title="رجوع">arrow_back</button>
         <h2 class="font-serif text-lg" data-i18n="game_title">عجلة الحظ اليومية</h2>
         <div class="w-10"></div>
       </div>
@@ -499,7 +508,7 @@
          ════════════════════════════════════════════════════════ -->
     <section id="screen-profile" class="screen bg-background pb-28">
       <div class="px-6 py-4 flex items-center justify-between border-b border-primary/5 sticky top-0 bg-background/80 backdrop-blur-md z-10">
-        <button class="material-symbols-outlined text-xl font-light" onclick="navigate('hub')">arrow_back</button>
+        <button class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-primary/5 transition-colors material-symbols-outlined text-xl font-light" onclick="goBack('hub')" title="رجوع">arrow_back</button>
         <h2 class="font-serif text-lg" data-i18n="user_profile">الملف الشخصي والحساب</h2>
         <div class="w-10"></div>
       </div>
@@ -611,7 +620,7 @@
          ════════════════════════════════════════════════════════ -->
     <section id="screen-favorites" class="screen bg-background">
       <div class="px-6 py-4 flex items-center justify-between border-b border-primary/5 sticky top-0 bg-background/80 backdrop-blur-md z-10">
-        <button class="material-symbols-outlined text-xl font-light" onclick="navigate('hub')">arrow_back</button>
+        <button class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-primary/5 transition-colors material-symbols-outlined text-xl font-light" onclick="goBack('hub')" title="رجوع">arrow_back</button>
         <h2 class="font-serif text-lg" data-i18n="fav_title">المفضلة</h2>
         <div class="w-10"></div>
       </div>
@@ -625,7 +634,7 @@
          ════════════════════════════════════════════════════════ -->
     <section id="screen-comments" class="screen bg-background">
       <div class="px-6 py-4 flex items-center justify-between border-b border-primary/5 sticky top-0 bg-background/80 backdrop-blur-md z-10">
-        <button class="material-symbols-outlined text-xl font-light" onclick="navigate('collections')">arrow_back</button>
+        <button class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-primary/5 transition-colors material-symbols-outlined text-xl font-light" onclick="goBack('collections')" title="رجوع">arrow_back</button>
         <h2 class="font-serif text-lg" data-i18n="comments_title">التقييمات</h2>
         <div class="w-10"></div>
       </div>
@@ -928,8 +937,7 @@
     </div>
   </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
-  <script type="module" src="./main.js?v=9.0"></script>
+  <script type="module" src="./main.js?v=10.0"></script>
 </body>
 </html>

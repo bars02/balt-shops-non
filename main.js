@@ -22,10 +22,18 @@ const state = {
   stories: [],
   currentStoryIndex: 0,
   isStoryPaused: false,
-  gameConfig: { dailyAttemptsAllowed: 1, prizes: [] },
+  gameConfig: { dailyAttemptsAllowed: 1, enabled: true, prizes: [] },
   isSpinning: false,
-  wonPrizes: JSON.parse(localStorage.getItem('noon_won_prizes') || '[]')
+  wonPrizes: JSON.parse(localStorage.getItem('noon_won_prizes') || '[]'),
+  navHistory: ['hub']
 };
+
+function resolveStoreImg(src, fallback = 'images/hero_noon.jpg') {
+  if (!src) return fallback;
+  const s = String(src).trim();
+  if (s.startsWith('../')) return s.replace(/^(\.\.\/)+/, '');
+  return s;
+}
 
 // --- Storage Helpers ---
 const saveCart = () => localStorage.setItem('noon_cart', JSON.stringify(state.cart));
@@ -73,11 +81,60 @@ window.showToast = (msg, type = 'info') => {
   }, 3200);
 };
 
-// --- Navigation Engine ---
-window.navigate = function(screenId) {
+// --- Navigation Engine & Smart Back Button Stack ---
+function closeAnyOpenOverlay() {
+  const storiesModal = document.getElementById('stories-modal');
+  if (storiesModal && !storiesModal.classList.contains('hidden')) {
+    closeStoriesModal();
+    return true;
+  }
+  const winModal = document.getElementById('wheel-win-modal');
+  if (winModal && !winModal.classList.contains('hidden')) {
+    closeWheelWinModal();
+    return true;
+  }
+  const forgotModal = document.getElementById('forgot-password-modal');
+  if (forgotModal && !forgotModal.classList.contains('hidden')) {
+    closeForgotPasswordModal();
+    return true;
+  }
+  const searchOv = document.getElementById('search-overlay');
+  if (searchOv && searchOv.classList.contains('visible')) {
+    toggleSearch(false);
+    return true;
+  }
+  const switcherOv = document.getElementById('store-switcher-modal');
+  if (switcherOv && switcherOv.classList.contains('visible')) {
+    toggleStoreSwitcher(false);
+    return true;
+  }
+  const moreOv = document.getElementById('more-overlay');
+  if (moreOv && moreOv.classList.contains('visible')) {
+    toggleMoreMenu(false);
+    return true;
+  }
+  return false;
+}
+
+window.navigate = function(screenId, isBack = false) {
   const current = document.querySelector('.screen.active');
   const target = document.getElementById(`screen-${screenId}`);
-  if (!target || current === target) return;
+  if (!target) return;
+  if (current === target) {
+    renderScreenContent(screenId);
+    return;
+  }
+
+  if (!isBack) {
+    const lastInStack = state.navHistory[state.navHistory.length - 1];
+    if (lastInStack !== screenId) {
+      state.navHistory.push(screenId);
+      if (state.navHistory.length > 25) state.navHistory.shift();
+    }
+    try {
+      window.history.pushState({ screen: screenId }, '', window.location.pathname + window.location.search);
+    } catch (e) {}
+  }
 
   if (window.ScrollTrigger) ScrollTrigger.getAll().forEach(st => st.kill());
 
@@ -87,7 +144,7 @@ window.navigate = function(screenId) {
     setTimeout(() => {
       current.classList.remove('active');
       current.style.cssText = '';
-    }, 250);
+    }, 220);
   }
 
   setTimeout(() => {
@@ -98,17 +155,48 @@ window.navigate = function(screenId) {
     renderScreenContent(screenId);
 
     requestAnimationFrame(() => {
-      target.style.transition = 'all 0.4s cubic-bezier(0.16,1,0.3,1)';
+      target.style.transition = 'all 0.35s cubic-bezier(0.16,1,0.3,1)';
       target.style.opacity = '1';
       target.style.transform = 'translateY(0)';
       setTimeout(() => {
         target.style.transition = '';
-      }, 400);
+      }, 360);
     });
-  }, 250);
+  }, 220);
 
   updateBottomNav(screenId);
 };
+
+window.goBack = function(fallbackScreen = 'hub') {
+  if (closeAnyOpenOverlay()) return;
+
+  if (state.navHistory.length > 1) {
+    state.navHistory.pop(); // remove current screen
+    const prevScreen = state.navHistory[state.navHistory.length - 1] || fallbackScreen;
+    navigate(prevScreen, true);
+  } else {
+    state.navHistory = [fallbackScreen];
+    navigate(fallbackScreen, true);
+  }
+};
+
+window.addEventListener('popstate', (e) => {
+  if (closeAnyOpenOverlay()) {
+    try {
+      window.history.pushState({ modalClosed: true }, '', window.location.pathname + window.location.search);
+    } catch (err) {}
+    return;
+  }
+  if (e.state && e.state.screen) {
+    const idx = state.navHistory.lastIndexOf(e.state.screen);
+    if (idx > -1) state.navHistory = state.navHistory.slice(0, idx + 1);
+    navigate(e.state.screen, true);
+  } else if (state.navHistory.length > 1) {
+    state.navHistory.pop();
+    const prev = state.navHistory[state.navHistory.length - 1] || 'hub';
+    navigate(prev, true);
+  }
+});
 
 function updateBottomNav(id) {
   document.querySelectorAll('#bottom-nav .nav-btn').forEach(b => {
@@ -152,7 +240,7 @@ function renderStoresHub() {
     const name = sanitizeHtml(lang === 'en' ? store.nameEn : store.nameAr);
     const badge = sanitizeHtml(lang === 'en' ? store.badgeEn : store.badgeAr);
     const desc = sanitizeHtml(lang === 'en' ? store.descriptionEn : store.descriptionAr);
-    const banner = sanitizeHtml(store.banner || 'images/hero_noon.jpg');
+    const banner = sanitizeHtml(resolveStoreImg(store.banner));
     const storeProdCount = state.products.filter(p => p.storeId === store.id).length;
 
     return `
@@ -223,7 +311,7 @@ function renderStoreSwitcher() {
       const isCurrent = store.id === state.activeStoreId;
       const name = sanitizeHtml(lang === 'en' ? store.nameEn : store.nameAr);
       const badge = sanitizeHtml(lang === 'en' ? store.badgeEn : store.badgeAr);
-      const banner = sanitizeHtml(store.banner || 'images/hero_noon.jpg');
+      const banner = sanitizeHtml(resolveStoreImg(store.banner));
 
       return `
         <div class="p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${isCurrent ? 'bg-primary/5 border-accent shadow-sm' : 'border-primary/10 hover:border-accent/40 bg-white'}" onclick="selectStore('${sanitizeHtml(store.id)}')">
@@ -257,7 +345,7 @@ function renderCurrentStoreView() {
   const descEl = document.getElementById('current-store-desc');
   const chipEl = document.getElementById('active-store-chip');
 
-  if (bannerEl) bannerEl.src = store.banner || 'images/hero_noon.jpg';
+  if (bannerEl) bannerEl.src = resolveStoreImg(store.banner);
   if (badgeEl) badgeEl.innerText = lang === 'en' ? store.badgeEn : store.badgeAr;
   if (titleEl) titleEl.innerText = lang === 'en' ? store.nameEn : store.nameAr;
   if (descEl) descEl.innerText = lang === 'en' ? store.descriptionEn : store.descriptionAr;
@@ -323,7 +411,7 @@ function renderStoreProducts(store) {
 
     return `
       <div class="focus-grid-item group relative cursor-pointer aspect-[3/4] overflow-hidden rounded-xl bg-white shadow-sm" onclick="viewProduct(${Number(p.id)})" data-product-id="${Number(p.id)}">
-        <img src="${sanitizeHtml(p.image)}" loading="lazy" class="w-full h-full object-cover transition-transform duration-700" onerror="this.src='images/hero_noon.jpg'">
+        <img src="${sanitizeHtml(resolveStoreImg(p.image))}" loading="lazy" class="w-full h-full object-cover transition-transform duration-700" onerror="this.src='images/hero_noon.jpg'">
         <button class="fav-btn absolute top-2 right-2 z-10 ${isFav ? 'is-fav' : ''}" onclick="event.stopPropagation(); toggleFavById(${Number(p.id)})">
           <span class="material-symbols-outlined">favorite</span>
         </button>
@@ -576,36 +664,44 @@ window.renderProductReviews = async (productId) => {
   const reviewsEnabled = state.platformSettings?.reviewsEnabled !== false;
 
   if (inputWrap) {
-    if (!reviewsEnabled) {
-      inputWrap.innerHTML = `
-        <div class="py-3 text-center text-primary/50 text-xs italic">
-          نظام التقييمات والتعليقات متوقف حالياً من إدارة المنصة.
-        </div>
-      `;
-    }
+    inputWrap.style.display = reviewsEnabled ? '' : 'none';
   }
 
   if (!listEl) return;
+  const lang = i18n.currentLang;
+
   if (!reviewsEnabled) {
-    listEl.innerHTML = '';
-    return;
-  }
-
-  const allReviews = await db.getReviews();
-  const productReviews = allReviews.filter(r => r.productId === productId || (!r.productId && r.storeId === state.activeStoreId));
-
-  if (productReviews.length === 0) {
-    listEl.innerHTML = `<p class="text-xs text-primary/40 text-center py-2 italic">كوني أول من يشاركنا رأيها في هذه القطعة الفاخرة.</p>`;
-    return;
-  }
-
-  listEl.innerHTML = productReviews.slice(0, 5).map(r => `
-    <div class="p-3 rounded-xl bg-white border border-primary/5 shadow-sm text-xs">
-      <div class="flex items-center justify-between mb-1">
-        <span class="font-bold text-primary">${sanitizeHtml(r.authorName)}</span>
-        <span class="text-[9px] text-primary/40">${sanitizeHtml(r.createdAt || '')}</span>
+    listEl.innerHTML = `
+      <div class="py-3 text-center text-primary/50 text-xs italic">
+        ${lang === 'en' ? 'Customer reviews are currently paused.' : 'نظام التقييمات والتعليقات متوقف حالياً من إدارة المنصة.'}
       </div>
-      <p class="text-primary/70 font-light leading-relaxed">${sanitizeHtml(r.content)}</p>
+    `;
+    return;
+  }
+
+  const productReviews = await db.getReviews({ productId: productId });
+
+  if (!productReviews || productReviews.length === 0) {
+    listEl.innerHTML = `
+      <div class="p-4 bg-primary/5 rounded-xl text-center">
+        <p class="text-[11px] text-primary/60 font-light">
+          ${lang === 'en' ? 'No reviews yet for this piece. Be the first to share your thoughts!' : 'لا توجد تقييمات بعد لهذه القطعة، كوني أول من يشارك رأيه الراقي!'}
+        </p>
+      </div>
+    `;
+    return;
+  }
+
+  listEl.innerHTML = productReviews.slice(0, 10).map(r => `
+    <div class="p-3 bg-white rounded-xl border border-primary/10 shadow-sm text-xs">
+      <div class="flex items-center justify-between mb-1">
+        <div class="flex items-center gap-1.5">
+          <span class="font-serif text-xs font-bold text-primary">${sanitizeHtml(r.authorName || (lang === 'en' ? 'NOON Client' : 'عميلة نون'))}</span>
+          <span class="text-[9px] text-accent">★★★★★</span>
+        </div>
+        <span class="text-[8px] text-primary/40 font-mono">${sanitizeHtml(r.createdAt || '')}</span>
+      </div>
+      <p class="text-xs text-primary/70 font-light leading-relaxed">${sanitizeHtml(r.content)}</p>
     </div>
   `).join('');
 };
@@ -618,23 +714,24 @@ window.submitProductReview = async () => {
   const input = document.getElementById('product-review-input');
   const text = input?.value.trim();
   if (!text) {
-    showToast(i18n.currentLang === 'en' ? "Please write your review" : "يرجى كتابة التقييم", "error");
+    showToast(i18n.currentLang === 'en' ? "Please write your review" : "يرجى كتابة التقييم أولاً", "error");
     return;
   }
-  const currentStore = state.stores.find(s => s.id === state.activeStoreId);
+  const p = state.products.find(x => x.id === state.currentProductId);
+  const currentStore = state.stores.find(s => s.id === (p?.storeId || state.activeStoreId));
   const author = state.user?.name || (i18n.currentLang === 'en' ? 'Valued Client' : 'عميلة نون');
 
   await db.addReview({
     productId: state.currentProductId,
-    storeId: state.activeStoreId,
+    storeId: p?.storeId || state.activeStoreId,
     storeName: currentStore ? (i18n.currentLang === 'en' ? currentStore.nameEn : currentStore.nameAr) : 'منصة نون',
     authorName: author,
     content: text
   });
 
   if (input) input.value = '';
-  await renderProductReviews(state.currentProductId);
-  showToast(i18n.currentLang === 'en' ? "Thank you for your review!" : "شكراً لكِ! تم نشر تقييمكِ بنجاح");
+  await window.renderProductReviews(state.currentProductId);
+  showToast(i18n.currentLang === 'en' ? "Thank you! Review published" : "شكراً لمشاركتكِ! تم نشر تقييمكِ بنجاح");
 };
 
 window.selectColor = (btn, hex) => {
@@ -1129,36 +1226,68 @@ window.updateGameUI = () => {
   if (attemptsBadge) attemptsBadge.innerText = attempts;
 
   const spinBtn = document.getElementById('spin-btn');
+  const wheelCenterBtn = document.getElementById('wheel-spin-btn');
+  const wheelCenterText = document.getElementById('wheel-spin-btn-text');
   const spinActionText = document.getElementById('spin-action-text');
   const disabledBanner = document.getElementById('game-disabled-banner');
-  const wheelWrap = document.querySelector('.wheel-container') || document.getElementById('fortune-wheel-canvas')?.parentElement;
+  const wheelWrap = document.getElementById('wheel-active-wrapper') || document.querySelector('.wheel-container-wrapper');
+  const hubGameBadge = document.getElementById('hub-game-badge');
 
   const isGameEnabled = state.gameConfig && state.gameConfig.enabled !== false;
+
+  if (hubGameBadge) {
+    hubGameBadge.innerText = isGameEnabled
+      ? (i18n.currentLang === 'en' ? 'INSTANT SPIN' : 'سحب فوري')
+      : (i18n.currentLang === 'en' ? 'PAUSED' : 'متوقفة مؤقتاً');
+  }
 
   if (!isGameEnabled) {
     if (disabledBanner) disabledBanner.classList.remove('hidden');
     if (spinBtn) {
+      spinBtn.disabled = true;
       spinBtn.classList.add('opacity-40', 'pointer-events-none');
+    }
+    if (wheelCenterBtn) {
+      wheelCenterBtn.disabled = true;
+      wheelCenterBtn.classList.add('pointer-events-none');
+    }
+    if (wheelCenterText) {
+      wheelCenterText.innerText = i18n.currentLang === 'en' ? 'Paused' : 'متوقفة';
     }
     if (spinActionText) {
       spinActionText.innerText = i18n.currentLang === 'en' ? 'Fortune Wheel Paused' : 'عجلة الحظ متوقفة حالياً';
     }
-    if (wheelWrap) wheelWrap.style.opacity = '0.4';
+    if (wheelWrap) {
+      wheelWrap.style.opacity = '0.35';
+      wheelWrap.classList.add('pointer-events-none');
+    }
     drawFortuneWheel(wheelCurrentAngle);
     return;
   }
 
   if (disabledBanner) disabledBanner.classList.add('hidden');
-  if (wheelWrap) wheelWrap.style.opacity = '1';
+  if (wheelWrap) {
+    wheelWrap.style.opacity = '1';
+    wheelWrap.classList.remove('pointer-events-none');
+  }
+  if (wheelCenterBtn) {
+    wheelCenterBtn.disabled = false;
+    wheelCenterBtn.classList.remove('pointer-events-none');
+  }
+  if (wheelCenterText) {
+    wheelCenterText.innerText = i18n.currentLang === 'en' ? 'Spin' : 'تدوير';
+  }
 
   if (attempts <= 0) {
     if (spinBtn) {
+      spinBtn.disabled = false;
       spinBtn.classList.add('opacity-50');
       spinBtn.classList.remove('pointer-events-none');
     }
     if (spinActionText) spinActionText.innerText = i18n.currentLang === 'en' ? 'Attempt Used for Today' : 'استنفدتِ محاولة اليوم';
   } else {
     if (spinBtn) {
+      spinBtn.disabled = false;
       spinBtn.classList.remove('opacity-50', 'opacity-40', 'pointer-events-none');
     }
     if (spinActionText) spinActionText.innerText = i18n.currentLang === 'en' ? 'Spin Wheel Now' : 'تدوير العجلة الآن';
@@ -1169,6 +1298,15 @@ window.updateGameUI = () => {
 
 window.spinFortuneWheel = () => {
   if (state.isSpinning) return;
+
+  // 0. Check if Fortune Wheel is paused/disabled by Admin
+  if (state.gameConfig && state.gameConfig.enabled === false) {
+    showToast(i18n.currentLang === 'en'
+      ? "The Fortune Wheel is currently paused by administration."
+      : "عجلة الحظ متوقفة حالياً من إدارة المنصة!", "error");
+    updateGameUI();
+    return;
+  }
 
   // 1. Authentication Check: User MUST be signed in
   if (!state.user || state.user.isGuest) {
@@ -1595,65 +1733,6 @@ function renderProfileUI() {
   }
 }
 
-// --- Product Specific Reviews Engine (آراء وتقييمات العميلات لكل قطعة) ---
-async function renderProductReviews(productId) {
-  const container = document.getElementById('product-reviews-list');
-  if (!container) return;
-  const lang = i18n.currentLang;
-
-  const reviews = await db.getReviews({ productId: productId });
-
-  if (!reviews || reviews.length === 0) {
-    container.innerHTML = `
-      <div class="p-4 bg-primary/5 rounded-xl text-center">
-        <p class="text-[11px] text-primary/60 font-light">
-          ${lang === 'en' ? 'No reviews yet for this piece. Be the first to share your thoughts!' : 'لا توجد تقييمات بعد لهذه القطعة، كوني أول من يشارك رأيه الراقي!'}
-        </p>
-      </div>
-    `;
-    return;
-  }
-
-  container.innerHTML = reviews.map(r => `
-    <div class="p-3 bg-white rounded-xl border border-primary/10 shadow-sm">
-      <div class="flex items-center justify-between mb-1">
-        <div class="flex items-center gap-1.5">
-          <span class="font-serif text-xs font-bold text-primary">${sanitizeHtml(r.authorName || (lang === 'en' ? 'NOON Client' : 'عميلة نون'))}</span>
-          <span class="text-[9px] text-accent">★★★★★</span>
-        </div>
-        <span class="text-[8px] text-primary/40 font-mono">${sanitizeHtml(r.createdAt || '')}</span>
-      </div>
-      <p class="text-xs text-primary/70 font-light leading-relaxed">${sanitizeHtml(r.content)}</p>
-    </div>
-  `).join('');
-}
-
-window.submitProductReview = async () => {
-  const textEl = document.getElementById('product-review-input');
-  const content = textEl?.value.trim();
-
-  if (!content) {
-    showToast(i18n.currentLang === 'en' ? "Please write your review" : "يرجى كتابة التقييم أولاً", "error");
-    return;
-  }
-
-  const p = state.products.find(x => x.id === state.currentProductId);
-  const currentStore = state.stores.find(s => s.id === p?.storeId);
-  const authorName = state.user?.name || (i18n.currentLang === 'en' ? 'NOON Client' : 'عميلة نون');
-
-  await db.addReview({
-    productId: state.currentProductId,
-    storeId: p?.storeId || state.activeStoreId,
-    storeName: currentStore ? (i18n.currentLang === 'en' ? currentStore.nameEn : currentStore.nameAr) : 'منصة نون',
-    authorName: authorName,
-    content: content
-  });
-
-  if (textEl) textEl.value = '';
-  await renderProductReviews(state.currentProductId);
-  showToast(i18n.currentLang === 'en' ? "Thank you! Review published" : "شكراً لمشاركتكِ! تم نشر تقييمكِ بنجاح");
-};
-
 // --- Screen 7: Favorites ---
 window.toggleFavorite = () => {
   if (!state.currentProductId) return;
@@ -1869,7 +1948,7 @@ export function renderHeroContent() {
   const heroBtnText = document.getElementById('hero-btn-text');
 
   if (heroBg && settings.heroBg) {
-    heroBg.src = settings.heroBg;
+    heroBg.src = resolveStoreImg(settings.heroBg);
   }
   if (heroBadge) {
     heroBadge.textContent = isAr 
@@ -1978,7 +2057,7 @@ function renderStorySlide(idx) {
   if (imgEl) {
     imgEl.classList.remove('story-kenburns');
     void imgEl.offsetWidth; // Trigger reflow for fresh animation
-    imgEl.src = story.image || 'images/hero_noon.jpg';
+    imgEl.src = resolveStoreImg(story.image);
     imgEl.classList.add('story-kenburns');
   }
 
@@ -2104,6 +2183,13 @@ const boot = async () => {
     state.stores = stores;
     state.products = products;
     state.gameConfig = gameCfg;
+    if (settings?.wheelPrizes && typeof settings.wheelPrizes === 'object' && !Array.isArray(settings.wheelPrizes)) {
+      state.gameConfig = {
+        dailyAttemptsAllowed: Number(settings.wheelPrizes.dailyAttemptsAllowed) || gameCfg.dailyAttemptsAllowed || 1,
+        enabled: settings.wheelPrizes.enabled !== false,
+        prizes: Array.isArray(settings.wheelPrizes.prizes) && settings.wheelPrizes.prizes.length > 0 ? settings.wheelPrizes.prizes : gameCfg.prizes
+      };
+    }
     state.stories = stories;
   } catch (err) {
     console.warn('[NOON] Parallel load timed out or errored, falling back gracefully:', err);
@@ -2147,6 +2233,42 @@ const boot = async () => {
     const pid = parseInt(prodParam);
     if (pid) setTimeout(() => viewProduct(pid), 500);
   }
+
+  // 3.5 Live Sync across tabs (when Admin updates Dashboard in another tab)
+  window.addEventListener('storage', (e) => {
+    if (!e.key || !e.key.startsWith('noon_')) return;
+    try {
+      if (e.key === 'noon_game_config' && e.newValue) {
+        state.gameConfig = JSON.parse(e.newValue);
+        updateGameUI();
+      } else if (e.key === 'noon_products' && e.newValue) {
+        state.products = JSON.parse(e.newValue);
+        const active = document.querySelector('.screen.active');
+        if (active) renderScreenContent(active.id.replace('screen-', ''));
+      } else if (e.key === 'noon_stores' && e.newValue) {
+        state.stores = JSON.parse(e.newValue);
+        renderStoresHub();
+        renderStoreSwitcher();
+        const active = document.querySelector('.screen.active');
+        if (active) renderScreenContent(active.id.replace('screen-', ''));
+      } else if (e.key === 'noon_stories' && e.newValue) {
+        state.stories = JSON.parse(e.newValue);
+      } else if (e.key === 'noon_platform_settings' && e.newValue) {
+        state.platformSettings = JSON.parse(e.newValue);
+        if (state.platformSettings?.wheelPrizes && typeof state.platformSettings.wheelPrizes === 'object' && !Array.isArray(state.platformSettings.wheelPrizes)) {
+          state.gameConfig = {
+            ...state.gameConfig,
+            dailyAttemptsAllowed: Number(state.platformSettings.wheelPrizes.dailyAttemptsAllowed) || state.gameConfig.dailyAttemptsAllowed || 1,
+            enabled: state.platformSettings.wheelPrizes.enabled !== false,
+            prizes: Array.isArray(state.platformSettings.wheelPrizes.prizes) ? state.platformSettings.wheelPrizes.prizes : state.gameConfig.prizes
+          };
+          updateGameUI();
+        }
+        renderHeroContent();
+        updateCartUI();
+      }
+    } catch (err) {}
+  });
 
   // 4. Ultra-Smooth GSAP Motion Reveal Timeline
   if (window.gsap) {

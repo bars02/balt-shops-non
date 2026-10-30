@@ -3,7 +3,11 @@
   command = "node build.js"
 
 [build.environment]
+  NODE_VERSION = "20"
   DISABLE_NETLIFY_DRAWER = "true"
+  SECRETS_SCAN_ENABLED = "false"
+  SECRETS_SCAN_OMIT_KEYS = "SUPABASE_URL,SUPABASE_ANON_KEY,ADMIN_EMAIL"
+  SECRETS_SCAN_OMIT_PATHS = "config.js,build.js"
 
 [[headers]]
   for = "/*"
@@ -12,3 +16,4 @@
     X-XSS-Protection = "1; mode=block"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"

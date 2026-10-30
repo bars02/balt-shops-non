@@ -33,6 +33,30 @@ export function sanitizeData(data) {
   return data;
 }
 
+// Safe LocalStorage Helper (Prevents QuotaExceededError from blocking Cloud Sync)
+function safeLocalSet(key, val) {
+  try {
+    localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val));
+  } catch (e) {
+    console.warn(`[NOON DB] LocalStorage quota warning for ${key}:`, e.message);
+  }
+}
+
+function getDynamicStoreNameMap() {
+  const map = {
+    elegance: 'بيلوز',
+    casual: 'كاجوال نون',
+    royal: 'رويال نون'
+  };
+  try {
+    const cached = JSON.parse(localStorage.getItem('noon_stores') || '[]');
+    cached.forEach(s => {
+      if (s && s.id && s.nameAr) map[s.id] = s.nameAr;
+    });
+  } catch (e) {}
+  return map;
+}
+
 // --- 2. SUPABASE INITIALIZATION ---
 let supabaseClient = null;
 let isSupabaseOnline = false;
@@ -56,7 +80,7 @@ export const getSupabase = () => supabaseClient;
 export const db = {
   isCloudReady: () => isSupabaseOnline && !!supabaseClient,
 
-  // --- STORES ---
+  // --- STORES & CATEGORIES ---
   async getStores() {
     if (this.isCloudReady()) {
       try {
@@ -72,22 +96,26 @@ export const db = {
             slug: s.slug || s.id,
             nameAr: s.name_ar,
             nameEn: s.name_en,
-            badgeAr: s.badge_ar,
-            badgeEn: s.badge_en,
-            descriptionAr: s.description_ar,
-            descriptionEn: s.description_en,
+            badgeAr: s.badge_ar || '',
+            badgeEn: s.badge_en || '',
+            descriptionAr: s.description_ar || '',
+            descriptionEn: s.description_en || '',
             banner: s.banner || '',
             avatar: s.avatar || '',
             whatsapp: s.whatsapp || '',
             instagram: s.instagram || '',
             facebook: s.facebook || '',
-            order: s.display_order,
-            active: s.is_active,
+            order: s.display_order || 1,
+            active: s.is_active !== false,
             categories: []
           }));
 
           // Fetch categories
-          const { data: catData } = await supabaseClient.from('categories').select('*');
+          const { data: catData } = await supabaseClient
+            .from('categories')
+            .select('*')
+            .order('display_order', { ascending: true });
+
           if (catData) {
             stores.forEach(st => {
               st.categories = catData
@@ -97,8 +125,12 @@ export const db = {
                 st.categories.unshift({ id: 'all', titleAr: 'الكل', titleEn: 'All' });
               }
             });
+          } else {
+            stores.forEach(st => {
+              st.categories = [{ id: 'all', titleAr: 'الكل', titleEn: 'All' }];
+            });
           }
-          localStorage.setItem('noon_stores', JSON.stringify(stores));
+          safeLocalSet('noon_stores', stores);
           return stores;
         }
       } catch (e) {
@@ -122,28 +154,59 @@ export const db = {
     } else {
       local.push(store);
     }
-    localStorage.setItem('noon_stores', JSON.stringify(local));
+    safeLocalSet('noon_stores', local);
 
-    // 2. Sync to Supabase
+    // 2. Sync Store & Categories to Supabase
     if (this.isCloudReady()) {
       try {
-        await supabaseClient.from('stores').upsert({
+        const { error: storeErr } = await supabaseClient.from('stores').upsert({
           id: store.id,
           slug: store.slug || store.id,
-          name_ar: store.nameAr,
-          name_en: store.nameEn,
-          badge_ar: store.badgeAr,
-          badge_en: store.badgeEn,
-          description_ar: store.descriptionAr,
-          description_en: store.descriptionEn,
-          banner: store.banner,
+          name_ar: store.nameAr || '',
+          name_en: store.nameEn || store.nameAr || '',
+          badge_ar: store.badgeAr || '',
+          badge_en: store.badgeEn || '',
+          description_ar: store.descriptionAr || '',
+          description_en: store.descriptionEn || '',
+          banner: store.banner || '',
           avatar: store.avatar || 'images/logo.png',
-          whatsapp: store.whatsapp,
-          instagram: store.instagram,
-          facebook: store.facebook,
-          display_order: store.order || 1,
-          is_active: store.active !== false
+          whatsapp: store.whatsapp || '',
+          instagram: store.instagram || '',
+          facebook: store.facebook || '',
+          display_order: Number(store.order) || 1,
+          is_active: store.active !== false,
+          updated_at: new Date().toISOString()
         });
+        if (storeErr) console.warn('[NOON DB] Store upsert warning:', storeErr.message);
+
+        // Sync categories for this store
+        if (Array.isArray(store.categories)) {
+          const catRows = store.categories.map((c, i) => ({
+            store_id: store.id,
+            id: c.id,
+            title_ar: c.titleAr || c.id,
+            title_en: c.titleEn || c.titleAr || c.id,
+            display_order: i
+          }));
+
+          if (catRows.length > 0) {
+            await supabaseClient.from('categories').upsert(catRows, { onConflict: 'store_id,id' });
+          }
+
+          // Clean up deleted categories in cloud for this store
+          const { data: existingCats } = await supabaseClient
+            .from('categories')
+            .select('id')
+            .eq('store_id', store.id);
+
+          if (existingCats && existingCats.length > 0) {
+            const validIds = new Set(store.categories.map(c => c.id));
+            const toDelete = existingCats.filter(c => !validIds.has(c.id)).map(c => c.id);
+            for (const delId of toDelete) {
+              await supabaseClient.from('categories').delete().eq('store_id', store.id).eq('id', delId);
+            }
+          }
+        }
       } catch (e) {
         console.error('[NOON DB] Cloud store sync error:', e);
       }
@@ -162,29 +225,29 @@ export const db = {
         if (storeId) q = q.eq('store_id', storeId);
         const { data, error } = await q;
 
-        if (!error && data && data.length > 0) {
+        if (!error && Array.isArray(data)) {
           const prods = data.map(p => ({
-            id: p.id,
+            id: Number(p.id),
             storeId: p.store_id,
-            category: p.category,
-            nameAr: p.name_ar,
-            nameEn: p.name_en,
+            category: p.category || 'all',
+            nameAr: p.name_ar || '',
+            nameEn: p.name_en || p.name_ar || '',
             price: Number(p.price) || 0,
             currencyAr: p.currency_ar || 'د.ع ',
             currencyEn: p.currency_en || 'IQD ',
-            image: p.image,
-            images: p.images || (p.image ? [p.image] : []),
-            descriptionAr: p.description_ar,
-            descriptionEn: p.description_en,
-            heritageAr: p.heritage_ar,
-            heritageEn: p.heritage_en,
-            colors: p.colors || [],
-            variants: p.colors || [],
-            sizes: Array.isArray(p.sizes) ? p.sizes : ['Standard'],
+            image: p.image || '',
+            images: Array.isArray(p.images) && p.images.length > 0 ? p.images : (p.image ? [p.image] : []),
+            descriptionAr: p.description_ar || '',
+            descriptionEn: p.description_en || '',
+            heritageAr: p.heritage_ar || '',
+            heritageEn: p.heritage_en || '',
+            colors: Array.isArray(p.colors) ? p.colors : [],
+            variants: Array.isArray(p.colors) ? p.colors : [],
+            sizes: Array.isArray(p.sizes) && p.sizes.length > 0 ? p.sizes : ['Standard'],
             available: p.is_available !== false
           }));
           if (!storeId) {
-            localStorage.setItem('noon_products', JSON.stringify(prods));
+            safeLocalSet('noon_products', prods);
           }
           return prods;
         }
@@ -208,42 +271,45 @@ export const db = {
   async saveProduct(prod) {
     const prodObj = {
       ...prod,
-      id: Number(prod.id),
+      id: Number(prod.id) || Date.now(),
+      category: prod.category || 'all',
       colors: prod.variants || prod.colors || [],
       variants: prod.variants || prod.colors || [],
       images: prod.images || (prod.image ? [prod.image] : [])
     };
 
     const local = await this.getProducts();
-    const idx = local.findIndex(p => p.id === prodObj.id);
+    const idx = local.findIndex(p => Number(p.id) === prodObj.id);
     if (idx > -1) {
       local[idx] = { ...local[idx], ...prodObj };
     } else {
       local.unshift(prodObj);
     }
-    localStorage.setItem('noon_products', JSON.stringify(local));
+    safeLocalSet('noon_products', local);
 
     if (this.isCloudReady()) {
       try {
-        await supabaseClient.from('products').upsert({
+        const { error } = await supabaseClient.from('products').upsert({
           id: prodObj.id,
           store_id: prodObj.storeId,
-          category: prodObj.category,
-          name_ar: prodObj.nameAr,
-          name_en: prodObj.nameEn,
-          price: prodObj.price,
+          category: prodObj.category || 'all',
+          name_ar: prodObj.nameAr || '',
+          name_en: prodObj.nameEn || prodObj.nameAr || '',
+          price: Number(prodObj.price) || 0,
           currency_ar: prodObj.currencyAr || 'د.ع ',
           currency_en: prodObj.currencyEn || 'IQD ',
-          image: prodObj.image,
-          images: prodObj.images,
-          description_ar: prodObj.descriptionAr,
-          description_en: prodObj.descriptionEn,
-          heritage_ar: prodObj.heritageAr,
-          heritage_en: prodObj.heritageEn,
-          colors: prodObj.colors,
+          image: prodObj.image || '',
+          images: prodObj.images || [],
+          description_ar: prodObj.descriptionAr || '',
+          description_en: prodObj.descriptionEn || '',
+          heritage_ar: prodObj.heritageAr || '',
+          heritage_en: prodObj.heritageEn || '',
+          colors: prodObj.colors || [],
           sizes: prodObj.sizes || ['Standard'],
-          is_available: true
+          is_available: prodObj.available !== false,
+          updated_at: new Date().toISOString()
         });
+        if (error) console.error('[NOON DB] Cloud product upsert error:', error.message);
       } catch (e) {
         console.error('[NOON DB] Cloud product sync error:', e);
       }
@@ -252,12 +318,13 @@ export const db = {
   },
 
   async deleteProduct(id) {
-    const local = (await this.getProducts()).filter(p => p.id !== id);
-    localStorage.setItem('noon_products', JSON.stringify(local));
+    const numId = Number(id);
+    const local = (await this.getProducts()).filter(p => Number(p.id) !== numId);
+    safeLocalSet('noon_products', local);
 
     if (this.isCloudReady()) {
       try {
-        await supabaseClient.from('products').delete().eq('id', id);
+        await supabaseClient.from('products').delete().eq('id', numId);
       } catch (e) {
         console.error('[NOON DB] Cloud product delete error:', e);
       }
@@ -268,8 +335,9 @@ export const db = {
   // --- REVIEWS / COMMENTS ---
   async getReviews(filter = null) {
     const storeId = typeof filter === 'string' ? filter : filter?.storeId;
-    const productId = typeof filter === 'object' ? filter?.productId : null;
-    const includeUnapproved = filter?.includeUnapproved === true;
+    const productId = typeof filter === 'object' && filter !== null ? filter?.productId : null;
+    const includeUnapproved = filter === true || filter?.includeUnapproved === true;
+    const storeNames = getDynamicStoreNameMap();
 
     if (this.isCloudReady()) {
       try {
@@ -278,12 +346,7 @@ export const db = {
         if (productId) q = q.eq('product_id', productId);
         if (!includeUnapproved) q = q.eq('is_approved', true);
         const { data, error } = await q;
-        if (!error && data) {
-          const storeNames = {
-            'elegance': 'إليجانس نون',
-            'casual': 'كاجوال نون',
-            'royal': 'رويال نون'
-          };
+        if (!error && Array.isArray(data)) {
           return data.map(r => {
             let formattedDate = 'مؤخراً';
             if (r.created_at) {
@@ -294,6 +357,7 @@ export const db = {
                 formattedDate = String(r.created_at);
               }
             }
+            const isApp = r.is_approved !== false;
             return {
               id: r.id,
               storeId: r.store_id,
@@ -302,7 +366,8 @@ export const db = {
               authorName: sanitizeHtml(r.author_name),
               content: sanitizeHtml(r.content),
               rating: r.rating || 5,
-              approved: r.is_approved !== false,
+              approved: isApp,
+              isApproved: isApp,
               createdAt: formattedDate
             };
           });
@@ -316,31 +381,38 @@ export const db = {
     if (local) {
       try { reviewsList = JSON.parse(local); } catch (e) {}
     }
+    reviewsList = reviewsList.map(r => ({
+      ...r,
+      approved: r.approved !== false && r.isApproved !== false,
+      isApproved: r.approved !== false && r.isApproved !== false
+    }));
     if (!includeUnapproved) {
       reviewsList = reviewsList.filter(r => r.approved !== false);
     }
     if (storeId) reviewsList = reviewsList.filter(r => r.storeId === storeId);
-    if (productId) reviewsList = reviewsList.filter(r => r.productId === productId);
+    if (productId) reviewsList = reviewsList.filter(r => Number(r.productId) === Number(productId));
     return reviewsList;
   },
 
   async addReview(review) {
+    const storeNames = getDynamicStoreNameMap();
     const cleanReview = {
       id: Date.now(),
       storeId: review.storeId || 'elegance',
       productId: review.productId || null,
-      storeName: review.storeName || 'منصة نون',
+      storeName: review.storeName || storeNames[review.storeId] || 'منصة نون',
       authorName: sanitizeHtml(review.authorName || 'عميلة نون'),
       content: sanitizeHtml(review.content || ''),
       rating: 5,
       approved: true,
+      isApproved: true,
       createdAt: 'الآن'
     };
 
     // Save local
     const reviews = JSON.parse(localStorage.getItem('noon_reviews') || '[]');
     reviews.unshift(cleanReview);
-    localStorage.setItem('noon_reviews', JSON.stringify(reviews));
+    safeLocalSet('noon_reviews', reviews);
 
     // Save Cloud
     if (this.isCloudReady()) {
@@ -367,10 +439,11 @@ export const db = {
       } catch(e) {}
     }
     let reviews = JSON.parse(localStorage.getItem('noon_reviews') || '[]');
-    const target = reviews.find(r => r.id === id);
+    const target = reviews.find(r => Number(r.id) === Number(id));
     if (target) {
       target.approved = approved;
-      localStorage.setItem('noon_reviews', JSON.stringify(reviews));
+      target.isApproved = approved;
+      safeLocalSet('noon_reviews', reviews);
     }
     return reviews;
   },
@@ -384,8 +457,8 @@ export const db = {
       }
     }
     let reviews = JSON.parse(localStorage.getItem('noon_reviews') || '[]');
-    reviews = reviews.filter(r => r.id !== id);
-    localStorage.setItem('noon_reviews', JSON.stringify(reviews));
+    reviews = reviews.filter(r => Number(r.id) !== Number(id));
+    safeLocalSet('noon_reviews', reviews);
     return reviews;
   },
 
@@ -408,7 +481,7 @@ export const db = {
     // Local
     const orders = JSON.parse(localStorage.getItem('noon_orders') || '[]');
     orders.unshift(cleanOrder);
-    localStorage.setItem('noon_orders', JSON.stringify(orders));
+    safeLocalSet('noon_orders', orders);
 
     // Cloud
     if (this.isCloudReady()) {
@@ -432,29 +505,55 @@ export const db = {
     return cleanOrder;
   },
 
-  // --- GAME CONFIG & SPINS ---
+  // --- GAME CONFIG & SPINS (عجلة الحظ اليومية وإعدادات التفعيل/الإيقاف) ---
   async getGameConfig() {
     if (this.isCloudReady()) {
       try {
+        // 1. Check platform_settings.wheel_prizes first (has full admin RLS write support & stores rich config)
+        const { data: platData } = await supabaseClient
+          .from('platform_settings')
+          .select('wheel_prizes')
+          .eq('id', 1)
+          .single();
+
+        if (platData && platData.wheel_prizes && typeof platData.wheel_prizes === 'object' && !Array.isArray(platData.wheel_prizes)) {
+          const wp = platData.wheel_prizes;
+          if (Array.isArray(wp.prizes) && wp.prizes.length > 0) {
+            const config = {
+              dailyAttemptsAllowed: Number(wp.dailyAttemptsAllowed) || 1,
+              enabled: wp.enabled !== false,
+              prizes: wp.prizes
+            };
+            safeLocalSet('noon_game_config', config);
+            return config;
+          }
+        }
+
+        // 2. Fallback to game_settings & game_prizes tables
         const { data: prizes } = await supabaseClient.from('game_prizes').select('*').eq('is_active', true);
         const { data: settings } = await supabaseClient.from('game_settings').select('*').eq('id', 1).single();
 
-        if (prizes && prizes.length > 0) {
+        if ((prizes && prizes.length > 0) || settings) {
+          const localCached = JSON.parse(localStorage.getItem('noon_game_config') || 'null');
+          const mappedPrizes = (prizes && prizes.length > 0)
+            ? prizes.map(p => ({
+                id: p.id,
+                nameAr: p.name_ar,
+                nameEn: p.name_en,
+                code: p.code,
+                icon: p.icon,
+                color: p.color,
+                weight: Number(p.weight) || 10,
+                symbol: p.symbol
+              }))
+            : (localCached?.prizes || initialGameConfig.prizes);
+
           const config = {
-            dailyAttemptsAllowed: settings?.daily_attempts_allowed || 1,
-            enabled: settings?.is_enabled !== false,
-            prizes: prizes.map(p => ({
-              id: p.id,
-              nameAr: p.name_ar,
-              nameEn: p.name_en,
-              code: p.code,
-              icon: p.icon,
-              color: p.color,
-              weight: p.weight,
-              symbol: p.symbol
-            }))
+            dailyAttemptsAllowed: Number(settings?.daily_attempts_allowed || localCached?.dailyAttemptsAllowed || 1),
+            enabled: settings && settings.is_enabled !== undefined ? (settings.is_enabled !== false) : (localCached ? localCached.enabled !== false : true),
+            prizes: mappedPrizes
           };
-          localStorage.setItem('noon_game_config', JSON.stringify(config));
+          safeLocalSet('noon_game_config', config);
           return config;
         }
       } catch (e) {
@@ -463,41 +562,74 @@ export const db = {
     }
     const local = localStorage.getItem('noon_game_config');
     if (local) {
-      try { return JSON.parse(local); } catch (e) {}
+      try {
+        const parsed = JSON.parse(local);
+        return {
+          dailyAttemptsAllowed: Number(parsed.dailyAttemptsAllowed) || 1,
+          enabled: parsed.enabled !== false,
+          prizes: Array.isArray(parsed.prizes) && parsed.prizes.length > 0 ? parsed.prizes : initialGameConfig.prizes
+        };
+      } catch (e) {}
     }
     return initialGameConfig;
   },
 
   async saveGameConfig(config) {
-    localStorage.setItem('noon_game_config', JSON.stringify(config));
+    const normalized = {
+      dailyAttemptsAllowed: Number(config.dailyAttemptsAllowed) || 1,
+      enabled: config.enabled !== false,
+      prizes: Array.isArray(config.prizes) ? config.prizes : []
+    };
+
+    safeLocalSet('noon_game_config', normalized);
+
+    // Also keep local platform settings in sync
+    try {
+      const localPlat = JSON.parse(localStorage.getItem('noon_platform_settings') || '{}');
+      localPlat.wheelPrizes = normalized;
+      safeLocalSet('noon_platform_settings', localPlat);
+    } catch (e) {}
+
     if (this.isCloudReady()) {
+      // 1. Primary Cloud Sync: Save inside platform_settings.wheel_prizes (guaranteed RLS write for Admin)
+      try {
+        await supabaseClient.from('platform_settings').upsert({
+          id: 1,
+          wheel_prizes: normalized,
+          updated_at: new Date().toISOString()
+        });
+      } catch (err) {
+        console.warn('[NOON DB] platform_settings wheel_prizes sync note:', err);
+      }
+
+      // 2. Secondary Cloud Sync: Sync game_settings & game_prizes tables
       try {
         await supabaseClient.from('game_settings').upsert({
           id: 1,
-          daily_attempts_allowed: config.dailyAttemptsAllowed || 1,
-          is_enabled: config.enabled !== false,
+          daily_attempts_allowed: normalized.dailyAttemptsAllowed,
+          is_enabled: normalized.enabled,
           updated_at: new Date().toISOString()
         });
-        if (config.prizes && config.prizes.length > 0) {
-          for (const p of config.prizes) {
+        if (normalized.prizes.length > 0) {
+          for (const p of normalized.prizes) {
             await supabaseClient.from('game_prizes').upsert({
               id: String(p.id || p.code || 'prize_' + Math.random()),
-              name_ar: p.nameAr,
-              name_en: p.nameEn,
+              name_ar: p.nameAr || '',
+              name_en: p.nameEn || p.nameAr || '',
               code: p.code || null,
               icon: p.icon || '🎁',
               color: p.color || '#D4AF37',
-              weight: p.weight || 10,
+              weight: Number(p.weight) || 10,
               symbol: p.symbol || p.icon || '💎',
               is_active: true
             });
           }
         }
       } catch (err) {
-        console.warn('[NOON DB] saveGameConfig cloud note:', err);
+        console.warn('[NOON DB] saveGameConfig secondary table sync note:', err);
       }
     }
-    return config;
+    return normalized;
   },
 
   async recordDailySpin(userId, prize) {
@@ -505,7 +637,7 @@ export const db = {
       try {
         await supabaseClient.from('daily_spins').insert({
           user_identifier: userId,
-          prize_id: prize?.id || null,
+          prize_id: prize?.id ? String(prize.id) : null,
           prize_code: prize?.code || null,
           spin_date: new Date().toISOString().split('T')[0]
         });
@@ -517,6 +649,7 @@ export const db = {
 
   // --- STORIES & BROADCASTS (قصص واستوريات المنصة) ---
   async getStories() {
+    const storeNames = getDynamicStoreNameMap();
     if (this.isCloudReady()) {
       try {
         const { data, error } = await supabaseClient
@@ -525,14 +658,9 @@ export const db = {
           .eq('is_active', true)
           .order('id', { ascending: false });
 
-        if (!error && data) {
-          const storeNames = {
-            'elegance': 'بيلوز',
-            'casual': 'كاجوال نون',
-            'royal': 'رويال نون'
-          };
+        if (!error && Array.isArray(data)) {
           const mapped = data.map(s => ({
-            id: s.id,
+            id: Number(s.id),
             storeId: s.store_id || 'platform',
             storeNameAr: storeNames[s.store_id] || s.store_name_ar || 'منصة نون',
             storeNameEn: s.store_name_en || 'NOON Platform',
@@ -544,11 +672,11 @@ export const db = {
             image: s.media_url,
             ctaAr: sanitizeHtml(s.cta_ar || 'استعراض التشكيلة'),
             ctaEn: sanitizeHtml(s.cta_en || 'Explore Collection'),
-            ctaAction: s.link_target ? `store:${s.link_target}` : (s.store_id ? `store:${s.store_id}` : 'hub'),
+            ctaAction: s.link_target && s.link_target !== 'platform' ? `store:${s.link_target}` : (s.store_id && s.store_id !== 'platform' ? `store:${s.store_id}` : 'hub'),
             time: 'مؤخراً',
             active: s.is_active !== false
           }));
-          localStorage.setItem('noon_stories', JSON.stringify(mapped));
+          safeLocalSet('noon_stories', mapped);
           return mapped;
         }
       } catch (e) {
@@ -564,28 +692,31 @@ export const db = {
 
   async saveStory(story) {
     const local = await this.getStories();
-    const idx = local.findIndex(s => s.id === story.id);
+    const storyId = Number(story.id) || Date.now();
+    const normalizedStory = { ...story, id: storyId };
+    const idx = local.findIndex(s => Number(s.id) === storyId);
     if (idx > -1) {
-      local[idx] = { ...local[idx], ...story };
+      local[idx] = { ...local[idx], ...normalizedStory };
     } else {
-      local.unshift(story);
+      local.unshift(normalizedStory);
     }
-    localStorage.setItem('noon_stories', JSON.stringify(local));
+    safeLocalSet('noon_stories', local);
 
     if (this.isCloudReady()) {
       try {
+        const dbStoreId = normalizedStory.storeId && normalizedStory.storeId !== 'platform' ? normalizedStory.storeId : null;
         await supabaseClient.from('stories').upsert({
-          id: story.id,
-          store_id: story.storeId,
-          title_ar: story.titleAr,
-          title_en: story.titleEn,
-          caption_ar: story.captionAr || story.titleAr,
-          caption_en: story.captionEn || '',
-          media_url: story.image,
-          link_target: story.storeId,
-          cta_ar: story.ctaAr || 'استعراض التشكيلة',
-          cta_en: story.ctaEn || 'Explore Collection',
-          is_active: story.active !== false
+          id: storyId,
+          store_id: dbStoreId,
+          title_ar: normalizedStory.titleAr || '',
+          title_en: normalizedStory.titleEn || normalizedStory.titleAr || '',
+          caption_ar: normalizedStory.captionAr || normalizedStory.titleAr || '',
+          caption_en: normalizedStory.captionEn || '',
+          media_url: normalizedStory.image || '',
+          link_target: dbStoreId || 'platform',
+          cta_ar: normalizedStory.ctaAr || 'استعراض التشكيلة',
+          cta_en: normalizedStory.ctaEn || 'Explore Collection',
+          is_active: normalizedStory.active !== false
         });
       } catch (e) {
         console.warn('[NOON DB] Cloud story sync error:', e);
@@ -595,12 +726,13 @@ export const db = {
   },
 
   async deleteStory(id) {
-    const local = (await this.getStories()).filter(s => s.id !== id);
-    localStorage.setItem('noon_stories', JSON.stringify(local));
+    const numId = Number(id);
+    const local = (await this.getStories()).filter(s => Number(s.id) !== numId);
+    safeLocalSet('noon_stories', local);
 
     if (this.isCloudReady()) {
       try {
-        await supabaseClient.from('stories').delete().eq('id', id);
+        await supabaseClient.from('stories').delete().eq('id', numId);
       } catch (e) {
         console.warn('[NOON DB] Cloud story delete skipped:', e);
       }
@@ -634,7 +766,7 @@ export const db = {
             storyDuration: Number(data.story_duration) || 6,
             reviewsEnabled: data.reviews_enabled !== false
           };
-          localStorage.setItem('noon_platform_settings', JSON.stringify(s));
+          safeLocalSet('noon_platform_settings', s);
           return s;
         }
       } catch (e) {
@@ -651,7 +783,7 @@ export const db = {
   async savePlatformSettings(settings) {
     const current = await this.getPlatformSettings();
     const updated = { ...current, ...settings };
-    localStorage.setItem('noon_platform_settings', JSON.stringify(updated));
+    safeLocalSet('noon_platform_settings', updated);
 
     if (this.isCloudReady()) {
       try {
@@ -693,7 +825,7 @@ export const db = {
 
     if (!this.isCloudReady()) {
       const mockUser = { id: 'u_' + Date.now(), email, name: fallbackName, isGuest: false };
-      localStorage.setItem('noon_user', JSON.stringify(mockUser));
+      safeLocalSet('noon_user', mockUser);
       return { user: mockUser, error: null };
     }
     try {
@@ -709,7 +841,7 @@ export const db = {
         name: fallbackName,
         isGuest: false
       };
-      localStorage.setItem('noon_user', JSON.stringify(user));
+      safeLocalSet('noon_user', user);
       return { user, error: null };
     } catch (err) {
       return { user: null, error: err.message };
@@ -719,7 +851,7 @@ export const db = {
   async clientSignIn(email, password) {
     if (!this.isCloudReady()) {
       const mockUser = { id: 'u_' + Date.now(), email, name: email.split('@')[0], isGuest: false };
-      localStorage.setItem('noon_user', JSON.stringify(mockUser));
+      safeLocalSet('noon_user', mockUser);
       return { user: mockUser, error: null };
     }
     try {
@@ -731,7 +863,7 @@ export const db = {
         name: data.user.user_metadata?.display_name || email.split('@')[0],
         isGuest: false
       };
-      localStorage.setItem('noon_user', JSON.stringify(user));
+      safeLocalSet('noon_user', user);
       return { user, error: null };
     } catch (err) {
       return { user: null, error: err.message };
@@ -798,6 +930,3 @@ export const initialPlatformSettings = {
   storyDuration: 6,
   reviewsEnabled: true
 };
-
-// Initial Luxury Fashion Stories (فارغ لمسح الداتا الافتراضية)
-export const initialStories = [];

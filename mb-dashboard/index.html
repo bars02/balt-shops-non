@@ -152,6 +152,10 @@
 
     <!-- Footer -->
     <div class="p-4 border-t border-white/10 space-y-2">
+        <button onclick="refreshDashboardData()" class="nav-btn text-accent hover:bg-white/10">
+            <span class="material-symbols-outlined text-sm">sync</span>
+            <span class="text-xs font-bold">تحديث ومزامنة البيانات</span>
+        </button>
         <a href="../index.html" class="nav-btn opacity-70 hover:opacity-100" style="text-decoration:none;">
             <span class="material-symbols-outlined text-sm">open_in_new</span>
             <span class="text-xs">معاينة واجهة المنصة</span>
@@ -362,19 +366,25 @@
 
             <!-- Settings Card -->
             <div class="card p-6 mb-6 bg-white">
-                <div class="flex justify-between items-center mb-4">
-                    <h4 class="font-serif text-base font-bold text-primary">إعدادات المحاولات والتشغيل</h4>
-                    <button class="btn-gold px-4 py-2 rounded-xl text-xs font-bold" onclick="saveGameConfigChanges()">حفظ إعدادات اللعبة</button>
+                <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
+                    <div class="flex items-center gap-2.5">
+                        <h4 class="font-serif text-base font-bold text-primary">إعدادات المحاولات والتشغيل</h4>
+                        <span id="game-status-badge" class="badge badge-active">مفعلة وشغالة ✅</span>
+                    </div>
+                    <button class="btn-gold px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm" onclick="saveGameConfigChanges()">
+                        <span class="material-symbols-outlined text-sm">save</span>
+                        <span>حفظ إعدادات العجلة</span>
+                    </button>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                     <div>
                         <label class="font-bold block mb-1 text-primary/70">عدد المحاولات اليومية المسموحة لكل مستخدم</label>
                         <input type="number" id="game-attempts-input" class="input-field" min="1" max="10" value="1">
                     </div>
-                    <div class="flex items-center gap-2 pt-6">
-                        <label class="flex items-center gap-2 cursor-pointer font-bold">
-                            <input type="checkbox" id="game-active-toggle" checked class="w-4 h-4 text-accent">
-                            <span>تفعيل عجلة الحظ على المنصة</span>
+                    <div class="flex items-center gap-2 pt-5">
+                        <label class="flex items-center gap-2.5 cursor-pointer font-bold bg-primary/5 px-4 py-2.5 rounded-xl border border-primary/10 hover:bg-primary/10 transition-colors w-full">
+                            <input type="checkbox" id="game-active-toggle" checked class="w-4 h-4 text-accent" onchange="toggleGameActiveStatus(this.checked)">
+                            <span>تفعيل عجلة الحظ على المنصة (تفعيل / إيقاف فوري)</span>
                         </label>
                     </div>
                 </div>
@@ -758,14 +768,15 @@
     </div>
 </div>
 
-<!-- ===================== MODAL: CATEGORY (إضافة قسم لمتجر) ===================== -->
+<!-- ===================== MODAL: CATEGORY (إضافة / تعديل قسم لمتجر) ===================== -->
 <div class="modal-bg" id="category-modal">
     <div class="bg-white rounded-3xl p-6 max-w-sm w-full border border-accent/30 shadow-2xl">
         <div class="flex justify-between items-center mb-4 border-b pb-2">
-            <h3 class="serif text-lg font-bold text-primary">إضافة قسم جديد</h3>
+            <h3 class="serif text-lg font-bold text-primary" id="category-modal-title">إضافة قسم جديد</h3>
             <button onclick="closeCategoryModal()" class="material-symbols-outlined text-primary/50">close</button>
         </div>
         <form id="category-form" onsubmit="saveCategory(event)" class="space-y-3 text-xs">
+            <input type="hidden" id="cat-edit-original-id">
             <div>
                 <label class="font-bold block mb-1">اسم القسم بالعربي *</label>
                 <input type="text" id="cat-name-ar" class="input-field" placeholder="مثال: فساتين دانتيل" required>
@@ -779,21 +790,22 @@
                 <input type="text" id="cat-id" class="input-field text-left" dir="ltr" placeholder="lace_dresses" required>
             </div>
             <div class="pt-3 flex gap-2">
-                <button type="submit" class="btn-gold flex-1 py-2.5 rounded-xl font-bold">إضافة القسم</button>
+                <button type="submit" id="category-submit-btn" class="btn-gold flex-1 py-2.5 rounded-xl font-bold">حفظ القسم</button>
                 <button type="button" onclick="closeCategoryModal()" class="btn-outline px-4 py-2.5 rounded-xl">إلغاء</button>
             </div>
         </form>
     </div>
 </div>
 
-<!-- ===================== MODAL: STORY (إضافة ستوري جديد) ===================== -->
+<!-- ===================== MODAL: STORY (إضافة / تعديل ستوري) ===================== -->
 <div class="modal-bg" id="story-modal">
     <div class="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto border border-accent/30 shadow-2xl">
         <div class="flex justify-between items-center mb-6 border-b pb-3">
-            <h3 class="serif text-xl font-bold text-primary">نشر ستوري جديد</h3>
+            <h3 class="serif text-xl font-bold text-primary" id="story-modal-title">نشر ستوري جديد</h3>
             <button onclick="closeStoryModal()" class="material-symbols-outlined text-primary/50 hover:text-primary">close</button>
         </div>
         <form id="story-form" onsubmit="saveStory(event)" class="space-y-4 text-xs">
+            <input type="hidden" id="story-edit-id">
             <div>
                 <label class="font-bold block mb-1">المتجر التابع له الستوري *</label>
                 <select id="story-store-select" class="input-field" required>
@@ -828,7 +840,7 @@
                 <input type="text" id="story-cta-text" class="input-field" placeholder="استعراض التشكيلة">
             </div>
             <div class="pt-3 flex gap-2">
-                <button type="submit" class="btn-gold flex-1 py-2.5 rounded-xl font-bold">نشر الستوري الآن</button>
+                <button type="submit" id="story-submit-btn" class="btn-gold flex-1 py-2.5 rounded-xl font-bold">نشر الستوري الآن</button>
                 <button type="button" onclick="closeStoryModal()" class="btn-outline px-4 py-2.5 rounded-xl">إلغاء</button>
             </div>
         </form>
@@ -908,6 +920,6 @@
     </div>
 </div>
 
-<script type="module" src="./dashboard.js?v=9.0"></script>
+<script type="module" src="./dashboard.js?v=10.0"></script>
 </body>
 </html>

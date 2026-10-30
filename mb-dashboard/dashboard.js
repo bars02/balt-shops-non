@@ -25,29 +25,75 @@ function showToast(msg, isError = false) {
     setTimeout(() => t.classList.remove('show'), 3500);
 }
 
+// --- Image Path Helper for Dashboard Subdirectory ---
+function resolveDashboardImg(src, fallback = '../images/hero_noon.jpg') {
+    if (!src) return fallback;
+    const s = String(src).trim();
+    if (s.startsWith('http://') || s.startsWith('https://') || s.startsWith('data:') || s.startsWith('../') || s.startsWith('/')) {
+        return s;
+    }
+    return '../' + s;
+}
+
+// --- Client-Side Image Compression Helper (Prevents 5MB+ Base64 bloat) ---
+function compressImageFile(file, maxWidth = 1280, quality = 0.82) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const rawDataUrl = e.target.result;
+            const img = new Image();
+            img.onload = () => {
+                try {
+                    let w = img.width;
+                    let h = img.height;
+                    if (w > maxWidth || h > maxWidth) {
+                        if (w > h) {
+                            h = Math.round((h * maxWidth) / w);
+                            w = maxWidth;
+                        } else {
+                            w = Math.round((w * maxWidth) / h);
+                            h = maxWidth;
+                        }
+                    }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w;
+                    canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, w, h);
+                    const compressed = canvas.toDataURL('image/jpeg', quality);
+                    resolve(compressed.length < rawDataUrl.length ? compressed : rawDataUrl);
+                } catch (err) {
+                    resolve(rawDataUrl);
+                }
+            };
+            img.onerror = () => resolve(rawDataUrl);
+            img.src = rawDataUrl;
+        };
+        reader.onerror = () => reject(new Error('File read error'));
+        reader.readAsDataURL(file);
+    });
+}
+
 // --- Image File Upload Handler (Direct Import from Device/Mobile) ---
-window.handleImageUpload = (inputEl, targetInputId, previewImgId) => {
+window.handleImageUpload = async (inputEl, targetInputId, previewImgId) => {
     if (!inputEl.files || !inputEl.files[0]) return;
     const file = inputEl.files[0];
-    if (file.size > 5 * 1024 * 1024) {
-        showToast("حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 5 ميجابايت", true);
+    if (file.size > 12 * 1024 * 1024) {
+        showToast("حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 12 ميجابايت", true);
         return;
     }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        const base64Data = e.target.result;
+    try {
+        const base64Data = await compressImageFile(file);
         const targetInput = document.getElementById(targetInputId);
         if (targetInput) targetInput.value = base64Data;
         if (previewImgId) {
             const previewImg = document.getElementById(previewImgId);
             if (previewImg) previewImg.src = base64Data;
         }
-        showToast("تم استيراد الصورة بنجاح من جهازكِ!");
-    };
-    reader.onerror = () => {
+        showToast("تم استيراد وضغط الصورة بنجاح من جهازكِ!");
+    } catch (err) {
         showToast("فشل استيراد الصورة من الجهاز", true);
-    };
-    reader.readAsDataURL(file);
+    }
 };
 
 // --- Strict Supabase Auth Handling ---
@@ -232,7 +278,7 @@ function renderStoresSection() {
         const nameAr = sanitizeHtml(store.nameAr);
         const nameEn = sanitizeHtml(store.nameEn);
         const badge = sanitizeHtml(store.badgeAr || '-');
-        const banner = sanitizeHtml(store.banner || '../images/hero_noon.jpg');
+        const banner = sanitizeHtml(resolveDashboardImg(store.banner));
         const whatsapp = sanitizeHtml(store.whatsapp || '');
         const desc = sanitizeHtml(store.descriptionAr || '');
         const sId = sanitizeHtml(store.id);
@@ -550,9 +596,15 @@ function renderCategoriesSection() {
                 </div>
             </div>
             ${c.id !== 'all' ? `
-                <button onclick="deleteCategory('${sanitizeHtml(store.id)}', '${sanitizeHtml(c.id)}')" class="text-red-500 hover:text-red-700 p-1">
-                    <span class="material-symbols-outlined text-sm">delete</span>
-                </button>
+                <div class="flex items-center gap-1.5">
+                    <button onclick="editCategory('${sanitizeHtml(store.id)}', '${sanitizeHtml(c.id)}')" class="btn-gold px-2.5 py-1 rounded-lg text-[11px] flex items-center gap-1" title="تعديل القسم">
+                        <span class="material-symbols-outlined text-xs">edit</span>
+                        <span>تعديل</span>
+                    </button>
+                    <button onclick="deleteCategory('${sanitizeHtml(store.id)}', '${sanitizeHtml(c.id)}')" class="text-red-500 hover:text-red-700 p-1 rounded-lg border border-red-200 hover:bg-red-50" title="حذف القسم">
+                        <span class="material-symbols-outlined text-sm">delete</span>
+                    </button>
+                </div>
             ` : '<span class="text-[10px] text-primary/40 italic">قسم أساسي</span>'}
         </div>
     `).join('');
@@ -560,6 +612,27 @@ function renderCategoriesSection() {
 
 window.openCategoryModal = () => {
     document.getElementById('category-form')?.reset();
+    const origId = document.getElementById('cat-edit-original-id');
+    if (origId) origId.value = '';
+    const titleEl = document.getElementById('category-modal-title');
+    if (titleEl) titleEl.innerText = 'إضافة قسم جديد';
+    document.getElementById('category-modal')?.classList.add('open');
+};
+
+window.editCategory = (storeId, catId) => {
+    const store = stores.find(s => s.id === storeId);
+    if (!store || !store.categories) return;
+    const cat = store.categories.find(c => c.id === catId);
+    if (!cat) return;
+
+    const origId = document.getElementById('cat-edit-original-id');
+    if (origId) origId.value = cat.id;
+    const titleEl = document.getElementById('category-modal-title');
+    if (titleEl) titleEl.innerText = `تعديل القسم: ${cat.titleAr}`;
+
+    document.getElementById('cat-name-ar').value = cat.titleAr || '';
+    document.getElementById('cat-name-en').value = cat.titleEn || '';
+    document.getElementById('cat-id').value = cat.id || '';
     document.getElementById('category-modal')?.classList.add('open');
 };
 
@@ -574,12 +647,25 @@ window.saveCategory = async (e) => {
     const store = stores.find(s => s.id === storeId);
     if (!store) return;
 
+    const origId = document.getElementById('cat-edit-original-id')?.value.trim();
     const titleAr = document.getElementById('cat-name-ar').value.trim();
     const titleEn = document.getElementById('cat-name-en').value.trim();
     const id = document.getElementById('cat-id').value.trim().toLowerCase().replace(/\s+/g, '_');
 
     if (!store.categories) store.categories = [{ id: 'all', titleAr: 'الكل', titleEn: 'All' }];
-    
+
+    if (origId) {
+        const idx = store.categories.findIndex(c => c.id === origId);
+        if (idx > -1) {
+            store.categories[idx] = { id, titleAr, titleEn };
+        }
+        stores = await db.saveStore(store);
+        closeCategoryModal();
+        renderCategoriesSection();
+        showToast(`تم تحديث قسم ${titleAr} بنجاح!`);
+        return;
+    }
+
     if (store.categories.some(c => c.id === id)) {
         showToast("معرف القسم موجود مسبقاً لهذا المتجر", true);
         return;
@@ -638,7 +724,7 @@ function renderProductsSection() {
         const nameEn = sanitizeHtml(p.nameEn);
         const category = sanitizeHtml(p.category);
         const storeName = sanitizeHtml(store ? store.nameAr : p.storeId);
-        const img = sanitizeHtml(p.image || '../images/hero_noon.jpg');
+        const img = sanitizeHtml(resolveDashboardImg(p.image));
         const price = Number(p.price || 0).toLocaleString();
 
         return `
@@ -770,22 +856,22 @@ window.updateVariantField = (index, field, value) => {
     }
 };
 
-window.handleVariantImageUpload = (inputEl, index) => {
+window.handleVariantImageUpload = async (inputEl, index) => {
     if (!inputEl.files || !inputEl.files[0]) return;
     const file = inputEl.files[0];
-    if (file.size > 5 * 1024 * 1024) {
-        showToast("حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 5 ميجابايت", true);
+    if (file.size > 12 * 1024 * 1024) {
+        showToast("حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 12 ميجابايت", true);
         return;
     }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        const base64Data = e.target.result;
+    try {
+        const base64Data = await compressImageFile(file);
         updateVariantField(index, 'image', base64Data);
         const input = document.getElementById(`variant-img-${index}`);
         if (input) input.value = base64Data;
-        showToast("تم استيراد صورة اللون بنجاح من جهازكِ!");
-    };
-    reader.readAsDataURL(file);
+        showToast("تم استيراد وضغط صورة اللون بنجاح من جهازكِ!");
+    } catch (err) {
+        showToast("فشل استيراد صورة اللون", true);
+    }
 };
 
 window.autoTranslateAllProductFields = async () => {
@@ -840,36 +926,50 @@ window.closeProductModal = () => {
     document.getElementById('product-modal')?.classList.remove('open');
 };
 
-window.updateProductCategoryOptions = () => {
+window.updateProductCategoryOptions = (selectedCategory = '') => {
     const storeId = document.getElementById('product-store-select')?.value;
     const store = stores.find(s => s.id === storeId);
     const catSelect = document.getElementById('product-category-select');
     if (!catSelect || !store) return;
 
-    const cats = store.categories || [{ id: 'all', titleAr: 'عام' }];
-    catSelect.innerHTML = cats.filter(c => c.id !== 'all').map(c => `
-        <option value="${sanitizeHtml(c.id)}">${sanitizeHtml(c.titleAr)}</option>
+    const rawCats = Array.isArray(store.categories) && store.categories.length > 0
+        ? store.categories
+        : [{ id: 'all', titleAr: 'الكل / عام' }];
+
+    const customCats = rawCats.filter(c => c.id !== 'all');
+    const optionsList = customCats.length > 0
+        ? [...customCats, { id: 'all', titleAr: 'الكل / عام' }]
+        : [{ id: 'all', titleAr: 'الكل / عام' }];
+
+    if (selectedCategory && !optionsList.some(c => c.id === selectedCategory)) {
+        optionsList.unshift({ id: selectedCategory, titleAr: selectedCategory });
+    }
+
+    catSelect.innerHTML = optionsList.map(c => `
+        <option value="${sanitizeHtml(c.id)}" ${c.id === selectedCategory ? 'selected' : ''}>${sanitizeHtml(c.titleAr)}</option>
     `).join('');
 };
 
 window.editProduct = (id) => {
-    const p = products.find(x => x.id === id);
+    const numId = Number(id);
+    const p = products.find(x => Number(x.id) === numId);
     if (!p) return;
-    editingProductId = id;
+    editingProductId = numId;
 
     document.getElementById('product-modal-title').innerText = 'تعديل بيانات القطعة';
     document.getElementById('product-edit-id').value = p.id;
 
     const storeSelect = document.getElementById('product-store-select');
     if (storeSelect) {
-        storeSelect.innerHTML = stores.map(s => `<option value="${s.id}" ${s.id === p.storeId ? 'selected' : ''}>${s.nameAr}</option>`).join('');
+        storeSelect.innerHTML = stores.map(s => `<option value="${sanitizeHtml(s.id)}" ${s.id === p.storeId ? 'selected' : ''}>${sanitizeHtml(s.nameAr)}</option>`).join('');
+        storeSelect.value = p.storeId || stores[0]?.id || '';
     }
-    updateProductCategoryOptions();
+    updateProductCategoryOptions(p.category || 'all');
 
     document.getElementById('product-name-ar').value = p.nameAr || '';
     document.getElementById('product-name-en').value = p.nameEn || '';
-    document.getElementById('product-category-select').value = p.category || '';
-    document.getElementById('product-price').value = p.price || '';
+    document.getElementById('product-category-select').value = p.category || 'all';
+    document.getElementById('product-price').value = p.price || 0;
     document.getElementById('product-image-url').value = p.image || '';
     document.getElementById('product-sizes').value = (p.sizes || []).join(', ');
     document.getElementById('product-desc-ar').value = p.descriptionAr || '';
@@ -938,12 +1038,14 @@ window.saveProduct = async (e) => {
         sizes: (Array.isArray(v.sizes) && v.sizes.length) ? v.sizes : (sizes.length ? sizes : ["Standard"])
     }));
 
+    const existingProd = editingProductId ? products.find(x => Number(x.id) === Number(editingProductId)) : null;
+
     const prodObj = {
-        id: editingProductId || Date.now(),
+        id: editingProductId ? Number(editingProductId) : Date.now(),
         storeId,
         nameAr,
-        nameEn,
-        category,
+        nameEn: nameEn || nameAr,
+        category: category || 'all',
         price,
         currencyAr: "د.ع ",
         currencyEn: "IQD ",
@@ -952,11 +1054,13 @@ window.saveProduct = async (e) => {
         colors: formattedColors,
         sizes: sizes.length ? sizes : ["Standard"],
         descriptionAr: desc,
-        descriptionEn: nameEn + " exquisite piece."
+        descriptionEn: existingProd?.descriptionEn || ((nameEn || nameAr) + " exquisite piece."),
+        heritageAr: existingProd?.heritageAr || '',
+        heritageEn: existingProd?.heritageEn || ''
     };
 
     products = await db.saveProduct(prodObj);
-    showToast(editingProductId ? "تم تحديث المنتج وتشيكلات الألوان بنجاح" : "تمت إضافة المنتج الجديد وتشيكلات الألوان بنجاح!");
+    showToast(editingProductId ? "تم تحديث المنتج وتشكيلات الألوان بنجاح!" : "تمت إضافة المنتج الجديد وتشكيلات الألوان بنجاح!");
 
     closeProductModal();
     renderProductsSection();
@@ -982,13 +1086,27 @@ const defaultWheelPrizes = [
     { id: 6, nameAr: 'خصم 30% للمشتريات الكبرى', nameEn: '30% Grand Discount', code: 'NOON-30VIP', color: '#D4AF37', textColor: '#1B2E1D', icon: '⭐', weight: 8, type: 'voucher', note: 'ألف مبروك! خصم 30% فوري' }
 ];
 
+function updateGameStatusBadge(isEnabled) {
+    const badge = document.getElementById('game-status-badge');
+    if (!badge) return;
+    if (isEnabled) {
+        badge.className = 'badge badge-active';
+        badge.innerText = 'مفعلة وشغالة ✅';
+    } else {
+        badge.className = 'badge badge-inactive';
+        badge.innerText = 'متوقفة حالياً ⛔';
+    }
+}
+
 function renderGameSection() {
     const attemptsInput = document.getElementById('game-attempts-input');
     const activeToggle = document.getElementById('game-active-toggle');
     const tbody = document.getElementById('game-prizes-tbody');
 
+    const isEnabled = gameConfig.enabled !== false;
     if (attemptsInput) attemptsInput.value = gameConfig.dailyAttemptsAllowed || 1;
-    if (activeToggle) activeToggle.checked = gameConfig.enabled !== false;
+    if (activeToggle) activeToggle.checked = isEnabled;
+    updateGameStatusBadge(isEnabled);
 
     if (!gameConfig.prizes || gameConfig.prizes.length === 0) {
         gameConfig.prizes = [...defaultWheelPrizes];
@@ -1150,9 +1268,31 @@ window.deletePrize = async (index) => {
     showToast("تم حذف الشريحة بنجاح");
 };
 
+window.toggleGameActiveStatus = async (checked) => {
+    const isEnabled = Boolean(checked);
+    gameConfig.enabled = isEnabled;
+    updateGameStatusBadge(isEnabled);
+
+    const attempts = parseInt(document.getElementById('game-attempts-input')?.value) || gameConfig.dailyAttemptsAllowed || 1;
+    gameConfig.dailyAttemptsAllowed = attempts;
+
+    if (gameConfig.prizes) {
+        gameConfig.prizes.forEach((p, i) => {
+            const wInput = document.getElementById(`prize-weight-${i}`);
+            if (wInput) p.weight = parseInt(wInput.value) || 10;
+        });
+    }
+
+    gameConfig = await db.saveGameConfig(gameConfig);
+    showToast(isEnabled
+        ? "تم تفعيل عجلة الحظ على المنصة وحفظ الحالة بنجاح! ✅"
+        : "تم إيقاف عجلة الحظ مؤقتاً وحفظ الحالة بنجاح! ⛔");
+};
+
 window.saveGameConfigChanges = async () => {
     const attempts = parseInt(document.getElementById('game-attempts-input')?.value) || 1;
-    const enabled = document.getElementById('game-active-toggle')?.checked;
+    const toggleEl = document.getElementById('game-active-toggle');
+    const enabled = toggleEl ? Boolean(toggleEl.checked) : true;
 
     if (gameConfig.prizes) {
         gameConfig.prizes.forEach((p, i) => {
@@ -1163,8 +1303,11 @@ window.saveGameConfigChanges = async () => {
 
     gameConfig.dailyAttemptsAllowed = attempts;
     gameConfig.enabled = enabled;
-    await db.saveGameConfig(gameConfig);
-    showToast("تم حفظ إعدادات ونسب الفوز في العجلة بنجاح!");
+    updateGameStatusBadge(enabled);
+    gameConfig = await db.saveGameConfig(gameConfig);
+    showToast(enabled
+        ? "تم حفظ إعدادات العجلة وتفعيلها بنجاح! ✅"
+        : "تم حفظ إعدادات العجلة وإيقافها مؤقتاً بنجاح! ⛔");
 };
 
 // ============================================================
@@ -1291,8 +1434,12 @@ async function renderStoriesSection() {
                         <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">نشط في الواجهة</span>
                     </div>
                 </div>
-                <div class="p-3 bg-[#fafaf5] border-t border-black/5 flex justify-end gap-2">
-                    <button class="text-xs text-red-600 hover:text-red-800 font-bold px-3 py-1.5 rounded-lg hover:bg-red-50 flex items-center gap-1" onclick="deleteStory(${s.id})">
+                <div class="p-3 bg-[#fafaf5] border-t border-black/5 flex justify-between gap-2">
+                    <button class="btn-gold flex-1 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1" onclick="editStory(${Number(s.id)})">
+                        <span class="material-symbols-outlined text-xs">edit</span>
+                        <span>تعديل الستوري</span>
+                    </button>
+                    <button class="text-xs text-red-600 hover:text-red-800 font-bold px-3 py-1.5 rounded-lg border border-red-200 hover:bg-red-50 flex items-center gap-1" onclick="deleteStory(${Number(s.id)})">
                         <span class="material-symbols-outlined text-xs">delete</span>
                         <span>حذف</span>
                     </button>
@@ -1309,16 +1456,49 @@ window.saveStoryDurationSetting = async () => {
     showToast(`تم حفظ مدة عرض كل ستوري بنجاح (${platformSettings.storyDuration} ثوانٍ)!`);
 };
 
-window.openStoryModal = () => {
+function populateStoryStoreSelect(selectedVal = 'platform') {
     const sel = document.getElementById('story-store-select');
     if (sel) {
         sel.innerHTML = `
-            <option value="platform">منصة نون العامة (الرئيسية)</option>
-            ${stores.map(st => `<option value="${sanitizeHtml(st.id)}">${sanitizeHtml(st.nameAr)} (${sanitizeHtml(st.nameEn)})</option>`).join('')}
+            <option value="platform" ${selectedVal === 'platform' ? 'selected' : ''}>منصة نون العامة (الرئيسية)</option>
+            ${stores.map(st => `<option value="${sanitizeHtml(st.id)}" ${st.id === selectedVal ? 'selected' : ''}>${sanitizeHtml(st.nameAr)} (${sanitizeHtml(st.nameEn)})</option>`).join('')}
         `;
+        sel.value = selectedVal || 'platform';
     }
+}
+
+window.openStoryModal = () => {
+    populateStoryStoreSelect('platform');
     const form = document.getElementById('story-form');
     if (form) form.reset();
+    const editIdEl = document.getElementById('story-edit-id');
+    if (editIdEl) editIdEl.value = '';
+    const titleEl = document.getElementById('story-modal-title');
+    if (titleEl) titleEl.innerText = 'نشر ستوري جديد';
+    const submitBtn = document.getElementById('story-submit-btn');
+    if (submitBtn) submitBtn.innerText = 'نشر الستوري الآن';
+    document.getElementById('story-modal')?.classList.add('open');
+};
+
+window.editStory = (id) => {
+    const numId = Number(id);
+    const s = stories.find(x => Number(x.id) === numId);
+    if (!s) return;
+
+    populateStoryStoreSelect(s.storeId || 'platform');
+    const editIdEl = document.getElementById('story-edit-id');
+    if (editIdEl) editIdEl.value = s.id;
+    const titleEl = document.getElementById('story-modal-title');
+    if (titleEl) titleEl.innerText = 'تعديل الستوري المنشور';
+    const submitBtn = document.getElementById('story-submit-btn');
+    if (submitBtn) submitBtn.innerText = 'حفظ التعديلات';
+
+    document.getElementById('story-title-ar').value = s.titleAr || '';
+    document.getElementById('story-title-en').value = s.titleEn || '';
+    document.getElementById('story-image-url').value = s.image || '';
+    document.getElementById('story-caption-ar').value = s.captionAr || '';
+    document.getElementById('story-cta-text').value = s.ctaAr || 'استعراض التشكيلة';
+
     document.getElementById('story-modal')?.classList.add('open');
 };
 
@@ -1328,6 +1508,8 @@ window.closeStoryModal = () => {
 
 window.saveStory = async (e) => {
     e.preventDefault();
+    const editIdVal = document.getElementById('story-edit-id')?.value.trim();
+    const isEditing = Boolean(editIdVal);
     const storeId = document.getElementById('story-store-select')?.value || 'platform';
     const titleAr = document.getElementById('story-title-ar')?.value.trim();
     const titleEn = document.getElementById('story-title-en')?.value.trim();
@@ -1344,8 +1526,8 @@ window.saveStory = async (e) => {
     const storeNameAr = matchedStore ? matchedStore.nameAr : 'منصة نون';
     const storeNameEn = matchedStore ? matchedStore.nameEn : 'NOON Platform';
 
-    const newStory = {
-        id: Date.now(),
+    const storyObj = {
+        id: isEditing ? Number(editIdVal) : Date.now(),
         storeId: storeId,
         storeNameAr: storeNameAr,
         storeNameEn: storeNameEn,
@@ -1358,14 +1540,14 @@ window.saveStory = async (e) => {
         ctaAr: ctaText,
         ctaEn: 'Explore',
         ctaAction: storeId !== 'platform' ? `store:${storeId}` : 'hub',
-        time: 'الآن',
+        time: isEditing ? 'تم التحديث' : 'الآن',
         active: true
     };
 
-    await db.saveStory(newStory);
+    stories = await db.saveStory(storyObj);
     closeStoryModal();
     await renderStoriesSection();
-    showToast("تم نشر الستوري بنجاح وربطه بالواجهة!");
+    showToast(isEditing ? "تم تحديث الستوري بنجاح!" : "تم نشر الستوري بنجاح وربطه بالواجهة!");
 };
 
 window.deleteStory = async (id) => {
@@ -1502,7 +1684,20 @@ window.autoTranslateProduct = async () => {
     showToast("تمت ترجمة اسم المنتج بنجاح!");
 };
 
-// --- Init Dashboard ---
+// --- Init & Refresh Dashboard ---
+window.refreshDashboardData = async () => {
+    showToast("جاري تحديث ومزامنة البيانات من قاعدة البيانات...");
+    [stores, products, gameConfig, stories, platformSettings] = await Promise.all([
+        db.getStores(),
+        db.getProducts(),
+        db.getGameConfig(),
+        db.getStories(),
+        db.getPlatformSettings()
+    ]);
+    showSection(currentSection || 'stores');
+    showToast("تمت مزامنة أحدث البيانات بنجاح! ✅");
+};
+
 async function init() {
     [stores, products, gameConfig, stories, platformSettings] = await Promise.all([
         db.getStores(),
