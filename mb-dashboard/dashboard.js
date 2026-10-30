@@ -35,10 +35,38 @@ function resolveDashboardImg(src, fallback = '../images/hero_noon.jpg') {
     return '../' + s;
 }
 
-// --- Client-Side Image Compression Helper (Prevents 5MB+ Base64 bloat) ---
-function compressImageFile(file, maxWidth = 1280, quality = 0.82) {
+// --- Format Bytes Helper (عرض الحجم بالبايتات والكيلوبايتات بدقة) ---
+function formatBytes(bytes) {
+    const b = Number(bytes) || 0;
+    if (b < 1024) return `${b} B`;
+    if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+    return `${(b / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function estimateDataUrlBytes(dataUrl) {
+    if (!dataUrl || typeof dataUrl !== 'string') return 0;
+    const base64Index = dataUrl.indexOf(',');
+    if (base64Index === -1) return new Blob([dataUrl]).size;
+    const base64 = dataUrl.slice(base64Index + 1);
+    return Math.round((base64.length * 3) / 4);
+}
+
+// --- Smart Byte-Level Client-Side Image Compressor ---
+function compressImageFileWithStats(file, modeOverride = null) {
     return new Promise((resolve, reject) => {
+        const modeSelect = document.getElementById('image-compression-mode');
+        const mode = modeOverride || (modeSelect ? modeSelect.value : 'ultra');
+
+        // Configure target byte budget & max dimensions per mode
+        const config = {
+            ultra: { maxDim: 920, startQ: 0.74, minQ: 0.38, targetBytes: 62 * 1024 },
+            smart: { maxDim: 1120, startQ: 0.82, minQ: 0.48, targetBytes: 105 * 1024 },
+            hd:    { maxDim: 1360, startQ: 0.88, minQ: 0.60, targetBytes: 185 * 1024 }
+        }[mode] || { maxDim: 960, startQ: 0.76, minQ: 0.40, targetBytes: 68 * 1024 };
+
+        const originalBytes = file.size || 0;
         const reader = new FileReader();
+
         reader.onload = (e) => {
             const rawDataUrl = e.target.result;
             const img = new Image();
@@ -46,27 +74,88 @@ function compressImageFile(file, maxWidth = 1280, quality = 0.82) {
                 try {
                     let w = img.width;
                     let h = img.height;
-                    if (w > maxWidth || h > maxWidth) {
+                    if (w > config.maxDim || h > config.maxDim) {
                         if (w > h) {
-                            h = Math.round((h * maxWidth) / w);
-                            w = maxWidth;
+                            h = Math.round((h * config.maxDim) / w);
+                            w = config.maxDim;
                         } else {
-                            w = Math.round((w * maxWidth) / h);
-                            h = maxWidth;
+                            w = Math.round((w * config.maxDim) / h);
+                            h = config.maxDim;
                         }
                     }
+
                     const canvas = document.createElement('canvas');
-                    canvas.width = w;
-                    canvas.height = h;
                     const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, w, h);
-                    const compressed = canvas.toDataURL('image/jpeg', quality);
-                    resolve(compressed.length < rawDataUrl.length ? compressed : rawDataUrl);
+
+                    const renderAtScale = (scaleFactor, quality) => {
+                        const cw = Math.max(240, Math.round(w * scaleFactor));
+                        const ch = Math.max(240, Math.round(h * scaleFactor));
+                        canvas.width = cw;
+                        canvas.height = ch;
+                        ctx.clearRect(0, 0, cw, ch);
+                        ctx.drawImage(img, 0, 0, cw, ch);
+
+                        // Try WebP first for superior byte reduction, fallback to JPEG
+                        let webpUrl = '';
+                        try {
+                            webpUrl = canvas.toDataURL('image/webp', quality);
+                        } catch (_) {}
+                        const jpegUrl = canvas.toDataURL('image/jpeg', quality);
+
+                        if (webpUrl && webpUrl.startsWith('data:image/webp') && webpUrl.length < jpegUrl.length) {
+                            return webpUrl;
+                        }
+                        return jpegUrl;
+                    };
+
+                    let q = config.startQ;
+                    let scale = 1.0;
+                    let bestUrl = renderAtScale(scale, q);
+                    let currentBytes = estimateDataUrlBytes(bestUrl);
+
+                    // Iteratively compress down until target byte budget is met
+                    let attempts = 0;
+                    while (currentBytes > config.targetBytes && attempts < 7) {
+                        attempts++;
+                        if (q > config.minQ + 0.06) {
+                            q = Math.max(config.minQ, +(q - 0.10).toFixed(2));
+                        } else {
+                            scale = +(scale * 0.85).toFixed(2);
+                        }
+                        const candidate = renderAtScale(scale, q);
+                        const candidateBytes = estimateDataUrlBytes(candidate);
+                        if (candidateBytes < currentBytes) {
+                            bestUrl = candidate;
+                            currentBytes = candidateBytes;
+                        }
+                    }
+
+                    const rawBytes = estimateDataUrlBytes(rawDataUrl) || originalBytes;
+                    const finalUrl = currentBytes < rawBytes ? bestUrl : rawDataUrl;
+                    const finalBytes = Math.min(currentBytes, rawBytes);
+                    const baseOrig = Math.max(originalBytes, rawBytes, finalBytes);
+                    const savedPercent = baseOrig > 0 ? Math.max(0, Math.round((1 - finalBytes / baseOrig) * 100)) : 0;
+
+                    resolve({
+                        dataUrl: finalUrl,
+                        originalBytes: baseOrig,
+                        compressedBytes: finalBytes,
+                        savedPercent
+                    });
                 } catch (err) {
-                    resolve(rawDataUrl);
+                    const fallbackBytes = estimateDataUrlBytes(rawDataUrl) || originalBytes;
+                    resolve({
+                        dataUrl: rawDataUrl,
+                        originalBytes: fallbackBytes,
+                        compressedBytes: fallbackBytes,
+                        savedPercent: 0
+                    });
                 }
             };
-            img.onerror = () => resolve(rawDataUrl);
+            img.onerror = () => {
+                const fallbackBytes = estimateDataUrlBytes(rawDataUrl) || originalBytes;
+                resolve({ dataUrl: rawDataUrl, originalBytes: fallbackBytes, compressedBytes: fallbackBytes, savedPercent: 0 });
+            };
             img.src = rawDataUrl;
         };
         reader.onerror = () => reject(new Error('File read error'));
@@ -74,25 +163,37 @@ function compressImageFile(file, maxWidth = 1280, quality = 0.82) {
     });
 }
 
-// --- Image File Upload Handler (Direct Import from Device/Mobile) ---
-window.handleImageUpload = async (inputEl, targetInputId, previewImgId) => {
+async function compressImageFile(file) {
+    const res = await compressImageFileWithStats(file);
+    return res.dataUrl;
+}
+
+// --- Image File Upload Handler (Direct Import from Device/Mobile with Byte Stats) ---
+window.handleImageUpload = async (inputEl, targetInputId, previewImgId, byteBadgeId) => {
     if (!inputEl.files || !inputEl.files[0]) return;
     const file = inputEl.files[0];
-    if (file.size > 12 * 1024 * 1024) {
-        showToast("حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 12 ميجابايت", true);
+    if (file.size > 15 * 1024 * 1024) {
+        showToast("حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 15 ميجابايت", true);
         return;
     }
     try {
-        const base64Data = await compressImageFile(file);
+        const stats = await compressImageFileWithStats(file);
         const targetInput = document.getElementById(targetInputId);
-        if (targetInput) targetInput.value = base64Data;
+        if (targetInput) targetInput.value = stats.dataUrl;
         if (previewImgId) {
             const previewImg = document.getElementById(previewImgId);
-            if (previewImg) previewImg.src = base64Data;
+            if (previewImg) previewImg.src = stats.dataUrl;
         }
-        showToast("تم استيراد وضغط الصورة بنجاح من جهازكِ!");
+        if (byteBadgeId) {
+            const badge = document.getElementById(byteBadgeId);
+            if (badge) {
+                badge.innerText = `⚡ مضغوطة: ${formatBytes(stats.originalBytes)} ← ${formatBytes(stats.compressedBytes)} (وفّرت ${stats.savedPercent}%)`;
+                badge.classList.remove('hidden');
+            }
+        }
+        showToast(`⚡ تم ضغط الصورة بالبايتات: ${formatBytes(stats.originalBytes)} ← ${formatBytes(stats.compressedBytes)} (توفير ${stats.savedPercent}%)`);
     } catch (err) {
-        showToast("فشل استيراد الصورة من الجهاز", true);
+        showToast("فشل استيراد وضغط الصورة من الجهاز", true);
     }
 };
 
@@ -752,8 +853,284 @@ function renderProductsSection() {
     }).join('');
 }
 
-// --- Product Variants & Sizes Studio State ---
+// ============================================================
+// 3B. INTERACTIVE 360° COLOR WHEEL PICKER & UNLIMITED FIELDS STUDIO
+// ============================================================
 let productVariants = [];
+let colorWheelState = {
+    target: null, // 'primary' or variant index (0, 1, 2...)
+    hue: 126,     // 0 - 360
+    sat: 41,      // 0 - 100
+    val: 18,      // 5 - 100
+    hex: '#1B2E1D',
+    suggestedAr: 'أخضر زمردي ملكي',
+    suggestedEn: 'Emerald Green',
+    isDragging: false,
+    canvasInitialized: false
+};
+
+function hsvToRgb(h, s, v) {
+    const sNorm = s / 100;
+    const vNorm = v / 100;
+    const c = vNorm * sNorm;
+    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+    const m = vNorm - c;
+    let r1 = 0, g1 = 0, b1 = 0;
+    if (h >= 0 && h < 60) { r1 = c; g1 = x; b1 = 0; }
+    else if (h >= 60 && h < 120) { r1 = x; g1 = c; b1 = 0; }
+    else if (h >= 120 && h < 180) { r1 = 0; g1 = c; b1 = x; }
+    else if (h >= 180 && h < 240) { r1 = 0; g1 = x; b1 = c; }
+    else if (h >= 240 && h < 300) { r1 = x; g1 = 0; b1 = c; }
+    else { r1 = c; g1 = 0; b1 = x; }
+    return {
+        r: Math.round((r1 + m) * 255),
+        g: Math.round((g1 + m) * 255),
+        b: Math.round((b1 + m) * 255)
+    };
+}
+
+function rgbToHex(r, g, b) {
+    const toHex = (n) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, '0').toUpperCase();
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+function hexToHsv(hexStr) {
+    let clean = String(hexStr || '#1B2E1D').trim().replace('#', '');
+    if (clean.length === 3) {
+        clean = clean.split('').map(c => c + c).join('');
+    }
+    if (!/^[0-9A-Fa-f]{6}$/.test(clean)) {
+        return { h: 126, s: 41, v: 18 };
+    }
+    const r = parseInt(clean.slice(0, 2), 16) / 255;
+    const g = parseInt(clean.slice(2, 4), 16) / 255;
+    const b = parseInt(clean.slice(4, 6), 16) / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    const d = max - min;
+    let h = 0;
+    const s = max === 0 ? 0 : d / max;
+    const v = max;
+    if (max !== min) {
+        switch (max) {
+            case r: h = ((g - b) / d + (g < b ? 6 : 0)) * 60; break;
+            case g: h = ((b - r) / d + 2) * 60; break;
+            case b: h = ((r - g) / d + 4) * 60; break;
+        }
+    }
+    return { h: Math.round(h), s: Math.round(s * 100), v: Math.max(5, Math.round(v * 100)) };
+}
+
+function detectFashionColorName(h, s, v) {
+    if (v <= 16) return { ar: 'أسود ملكي', en: 'Royal Black' };
+    if (s <= 10 && v >= 88) return { ar: 'أبيض لؤلؤي', en: 'Pearl White' };
+    if (s <= 14 && v >= 60) return { ar: 'فضي رمادي ناعم', en: 'Soft Silver Grey' };
+    if (s <= 15) return { ar: 'رمادي داكن فحمي', en: 'Charcoal Grey' };
+    if (h >= 25 && h <= 52 && s >= 15 && s <= 45 && v >= 78) return { ar: 'بيج شامبين كريمي', en: 'Champagne Beige' };
+    if (h >= 15 && h <= 42 && v <= 48) return { ar: 'بني شوكولا', en: 'Chocolate Brown' };
+    if ((h >= 345 || h < 14) && v <= 55) return { ar: 'ماروني / عنابي ملكي', en: 'Royal Burgundy' };
+    if (h >= 345 || h < 14) return s < 45 ? { ar: 'وردي بودر ناعم', en: 'Blush Rose' } : { ar: 'أحمر ياقوتي', en: 'Ruby Red' };
+    if (h >= 14 && h < 36) return { ar: 'مرجاني / مشمشي دافئ', en: 'Warm Coral Peach' };
+    if (h >= 36 && h < 64) return v < 65 ? { ar: 'ذهبي معتّق', en: 'Antique Gold' } : { ar: 'ذهبي ملكي', en: 'Royal Gold' };
+    if (h >= 64 && h < 95) return { ar: 'زيتوني فستقي', en: 'Olive Pistachio' };
+    if (h >= 95 && h < 168) return v < 50 ? { ar: 'أخضر زمردي ملكي', en: 'Emerald Green' } : { ar: 'أخضر نعناعي ناعم', en: 'Mint Emerald' };
+    if (h >= 168 && h < 205) return { ar: 'فيروزي محيطي', en: 'Turquoise Teal' };
+    if (h >= 205 && h < 252) return v < 48 ? { ar: 'كحلي ليلي ملكي', en: 'Midnight Navy' } : { ar: 'أزرق سماوي ملكي', en: 'Royal Sky Blue' };
+    if (h >= 252 && h < 298) return s < 45 ? { ar: 'لافندر ناعم', en: 'Soft Lavender' } : { ar: 'بنفسجي ملكي', en: 'Royal Purple' };
+    return { ar: 'وردي فوشيا أنيق', en: 'Magenta Rose' };
+}
+
+function drawColorWheelCanvas(brightnessVal = 100) {
+    const canvas = document.getElementById('color-wheel-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const size = canvas.width;
+    const radius = size / 2;
+    const imgData = ctx.createImageData(size, size);
+    const data = imgData.data;
+
+    for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+            const dx = x - radius;
+            const dy = y - radius;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const idx = (y * size + x) * 4;
+            if (dist <= radius) {
+                let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+                if (angle < 0) angle += 360;
+                const sat = Math.min(100, (dist / radius) * 100);
+                const rgb = hsvToRgb(angle, sat, brightnessVal);
+                data[idx] = rgb.r;
+                data[idx + 1] = rgb.g;
+                data[idx + 2] = rgb.b;
+                data[idx + 3] = 255;
+            } else {
+                data[idx + 3] = 0;
+            }
+        }
+    }
+    ctx.putImageData(imgData, 0, 0);
+}
+
+function syncColorWheelUI(skipHexInput = false) {
+    const { hue, sat, val } = colorWheelState;
+    const rgb = hsvToRgb(hue, sat, val);
+    const hex = rgbToHex(rgb.r, rgb.g, rgb.b);
+    colorWheelState.hex = hex;
+
+    const names = detectFashionColorName(hue, sat, val);
+    colorWheelState.suggestedAr = names.ar;
+    colorWheelState.suggestedEn = names.en;
+
+    // Position the draggable circle handle
+    const cursor = document.getElementById('color-wheel-cursor');
+    const canvas = document.getElementById('color-wheel-canvas');
+    if (cursor && canvas) {
+        const radius = canvas.width / 2;
+        const rad = (hue * Math.PI) / 180;
+        const dist = (sat / 100) * radius;
+        const cx = radius + Math.cos(rad) * dist;
+        const cy = radius + Math.sin(rad) * dist;
+        cursor.style.left = `${cx}px`;
+        cursor.style.top = `${cy}px`;
+        cursor.style.backgroundColor = hex;
+    }
+
+    const swatch = document.getElementById('color-wheel-live-swatch');
+    if (swatch) swatch.style.backgroundColor = hex;
+
+    if (!skipHexInput) {
+        const hexInput = document.getElementById('color-wheel-hex-input');
+        if (hexInput) hexInput.value = hex;
+    }
+
+    const nameEl = document.getElementById('color-wheel-suggested-name');
+    if (nameEl) nameEl.innerText = `${names.ar} (${names.en})`;
+
+    const valSlider = document.getElementById('color-wheel-brightness');
+    if (valSlider) valSlider.value = val;
+
+    const valLabel = document.getElementById('color-wheel-val-label');
+    if (valLabel) valLabel.innerText = `${val}%`;
+}
+
+function handleColorWheelPointer(clientX, clientY) {
+    const stage = document.getElementById('color-wheel-stage');
+    if (!stage) return;
+    const rect = stage.getBoundingClientRect();
+    const radius = rect.width / 2;
+    const dx = clientX - (rect.left + radius);
+    const dy = clientY - (rect.top + radius);
+    const dist = Math.min(radius, Math.sqrt(dx * dx + dy * dy));
+    let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+    if (angle < 0) angle += 360;
+
+    colorWheelState.hue = Math.round(angle);
+    colorWheelState.sat = Math.round((dist / radius) * 100);
+    syncColorWheelUI();
+}
+
+function initColorWheelEventsOnce() {
+    if (colorWheelState.canvasInitialized) return;
+    const stage = document.getElementById('color-wheel-stage');
+    if (!stage) return;
+    colorWheelState.canvasInitialized = true;
+
+    stage.addEventListener('pointerdown', (e) => {
+        colorWheelState.isDragging = true;
+        stage.setPointerCapture?.(e.pointerId);
+        handleColorWheelPointer(e.clientX, e.clientY);
+    });
+    stage.addEventListener('pointermove', (e) => {
+        if (!colorWheelState.isDragging) return;
+        handleColorWheelPointer(e.clientX, e.clientY);
+    });
+    const endDrag = () => { colorWheelState.isDragging = false; };
+    stage.addEventListener('pointerup', endDrag);
+    stage.addEventListener('pointercancel', endDrag);
+}
+
+window.openColorWheelPicker = (target) => {
+    colorWheelState.target = target;
+    initColorWheelEventsOnce();
+
+    let initialHex = '#1B2E1D';
+    if (target === 'primary') {
+        initialHex = document.getElementById('product-primary-color-hex')?.value || '#1B2E1D';
+    } else if (typeof target === 'number' && productVariants[target]) {
+        initialHex = productVariants[target].hex || '#1B2E1D';
+    }
+
+    const hsv = hexToHsv(initialHex);
+    colorWheelState.hue = hsv.h;
+    colorWheelState.sat = hsv.s;
+    colorWheelState.val = hsv.v;
+
+    drawColorWheelCanvas(colorWheelState.val);
+    syncColorWheelUI();
+    document.getElementById('color-wheel-picker-modal')?.classList.add('open');
+};
+
+window.closeColorWheelPicker = () => {
+    document.getElementById('color-wheel-picker-modal')?.classList.remove('open');
+};
+
+window.onColorWheelBrightnessChange = (val) => {
+    colorWheelState.val = Math.max(5, Math.min(100, Number(val) || 100));
+    drawColorWheelCanvas(colorWheelState.val);
+    syncColorWheelUI();
+};
+
+window.onColorWheelHexManualInput = (val) => {
+    const clean = String(val || '').trim();
+    if (/^#?[0-9A-Fa-f]{6}$/.test(clean)) {
+        const formatted = clean.startsWith('#') ? clean.toUpperCase() : `#${clean.toUpperCase()}`;
+        const hsv = hexToHsv(formatted);
+        colorWheelState.hue = hsv.h;
+        colorWheelState.sat = hsv.s;
+        colorWheelState.val = hsv.v;
+        drawColorWheelCanvas(colorWheelState.val);
+        syncColorWheelUI(true);
+    }
+};
+
+window.selectPresetOnWheel = (hex, nameAr, nameEn) => {
+    const hsv = hexToHsv(hex);
+    colorWheelState.hue = hsv.h;
+    colorWheelState.sat = hsv.s;
+    colorWheelState.val = hsv.v;
+    drawColorWheelCanvas(colorWheelState.val);
+    syncColorWheelUI();
+    if (nameAr) colorWheelState.suggestedAr = nameAr;
+    if (nameEn) colorWheelState.suggestedEn = nameEn;
+    const nameEl = document.getElementById('color-wheel-suggested-name');
+    if (nameEl) nameEl.innerText = `${colorWheelState.suggestedAr} (${colorWheelState.suggestedEn})`;
+};
+
+window.applyColorWheelSelection = () => {
+    const { target, hex, suggestedAr, suggestedEn } = colorWheelState;
+    if (target === 'primary') {
+        const hexInput = document.getElementById('product-primary-color-hex');
+        const preview = document.getElementById('primary-color-swatch-preview');
+        const arInput = document.getElementById('product-primary-color-ar');
+        const enInput = document.getElementById('product-primary-color-en');
+        if (hexInput) hexInput.value = hex;
+        if (preview) preview.style.backgroundColor = hex;
+        if (arInput && !arInput.value.trim()) arInput.value = suggestedAr;
+        if (enInput && !enInput.value.trim()) enInput.value = suggestedEn;
+        showToast(`🎨 تم اختيار لون العرض الأساسي (${suggestedAr})`);
+    } else if (typeof target === 'number' && productVariants[target]) {
+        productVariants[target].hex = hex;
+        if (!productVariants[target].colorNameAr?.trim()) {
+            productVariants[target].colorNameAr = suggestedAr;
+        }
+        if (!productVariants[target].colorNameEn?.trim()) {
+            productVariants[target].colorNameEn = suggestedEn;
+        }
+        renderProductVariantsUI();
+        showToast(`🎨 تم اعتماد اللون (${productVariants[target].colorNameAr || hex}) للحقل #${target + 1}`);
+    }
+    closeColorWheelPicker();
+};
 
 window.addQuickSize = (size) => {
     const input = document.getElementById('product-sizes');
@@ -765,81 +1142,172 @@ window.addQuickSize = (size) => {
     }
 };
 
+window.addVariantQuickSize = (index, size) => {
+    if (!productVariants[index]) return;
+    const current = Array.isArray(productVariants[index].sizes)
+        ? [...productVariants[index].sizes]
+        : String(productVariants[index].sizes || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (!current.includes(size)) {
+        current.push(size);
+        productVariants[index].sizes = current;
+        const sizeInput = document.getElementById(`variant-sizes-${index}`);
+        if (sizeInput) sizeInput.value = current.join(', ');
+    }
+};
+
 window.renderProductVariantsUI = () => {
     const container = document.getElementById('product-variants-list');
+    const countBadge = document.getElementById('variants-count-badge');
+    if (countBadge) {
+        countBadge.innerText = `${productVariants.length} حقول إضافية`;
+    }
     if (!container) return;
 
     if (productVariants.length === 0) {
         container.innerHTML = `
-            <div class="text-center py-4 bg-white/60 rounded-xl border border-dashed border-primary/20 text-primary/40 text-[11px]">
-                لم تتم إضافة ألوان إضافية بعد. انقري على "إضافة لون جديد" أعلاه لإضافة درجات لونية متعددة مع صورها ووصفها ومقاساتها.
+            <div class="text-center py-5 px-4 bg-white/80 rounded-2xl border border-dashed border-primary/20 text-primary/50 text-[11px] space-y-1">
+                <p class="font-bold text-primary/70">لا توجد حقول إضافية مفتوحة حالياً (يتم عرض الحقل الأساسي #1 فقط).</p>
+                <p>اضغطي على <strong>"+ فتح حقل جديد (صورة ولون)"</strong> لفتح عدد لا نهائي من الحقول لنفس المنتج، كل حقل بصورته المضغوطة ولونه من دائرة الألوان وتفاصيله الخاصة.</p>
             </div>
         `;
         return;
     }
 
-    container.innerHTML = productVariants.map((v, i) => `
-        <div class="p-3.5 bg-white rounded-2xl border border-primary/10 shadow-sm space-y-3 relative">
-            <div class="flex items-center justify-between border-b border-primary/5 pb-2">
-                <div class="flex items-center gap-2.5">
-                    <input type="color" value="${v.hex || '#1B2E1D'}" onchange="updateVariantField(${i}, 'hex', this.value)" class="w-8 h-8 rounded-full border-2 border-accent cursor-pointer p-0 overflow-hidden shadow-sm" title="اختاري لون الدائرة">
-                    <span class="font-mono text-[10px] text-primary/60 font-bold">${v.hex || '#1B2E1D'}</span>
-                    <span class="font-bold text-xs text-primary">${v.colorNameAr || `لون #${i + 1}`}</span>
+    const quickSizesList = ['S', 'M', 'L', 'XL', 'XXL', 'Free Size', '36', '38', '40', '42', '44'];
+
+    container.innerHTML = productVariants.map((v, i) => {
+        const previewSrc = v.image ? resolveDashboardImg(v.image) : '../images/hero_noon.jpg';
+        const sizesStr = Array.isArray(v.sizes) ? v.sizes.join(', ') : (v.sizes || '');
+        const byteStatsHtml = v.byteBadgeText
+            ? `<span class="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">${sanitizeHtml(v.byteBadgeText)}</span>`
+            : `<span class="text-[9px] text-primary/40">يتم ضغط الصورة تلقائياً بالبايتات عند الرفع</span>`;
+
+        return `
+        <div class="p-4 bg-white rounded-2xl border-2 border-primary/10 hover:border-accent/50 shadow-sm space-y-3 relative transition-all">
+            <!-- Header: Field Number + Interactive Color Wheel Button + Actions -->
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-primary/10 pb-2.5">
+                <div class="flex items-center gap-2">
+                    <span class="bg-primary text-accent font-bold text-[10px] px-2.5 py-1 rounded-lg">حقل إضافي #${i + 1}</span>
+                    <button type="button" onclick="openColorWheelPicker(${i})"
+                            class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-primary/5 hover:bg-accent/15 border border-accent/60 transition-all shadow-sm"
+                            title="افتحي دائرة الألوان وحرّكي المؤشر لاختيار اللون">
+                        <span class="w-5 h-5 rounded-full border-2 border-white shadow-md inline-block shrink-0" style="background-color: ${sanitizeHtml(v.hex || '#1B2E1D')};"></span>
+                        <span class="font-bold text-[11px] text-primary">🎨 دائرة الألوان (حرّك الدائرة)</span>
+                        <span class="font-mono text-[10px] text-primary/60">${sanitizeHtml(v.hex || '#1B2E1D')}</span>
+                    </button>
                 </div>
-                <button type="button" onclick="removeProductVariant(${i})" class="text-red-500 hover:text-red-700 text-[11px] font-bold flex items-center gap-0.5 p-1 transition-colors">
-                    <span class="material-symbols-outlined text-sm">delete</span> حذف اللون
-                </button>
+                <div class="flex items-center gap-1.5">
+                    <button type="button" onclick="duplicateProductVariant(${i})" class="px-2.5 py-1 rounded-lg bg-primary/5 hover:bg-primary/10 text-primary text-[10px] font-bold flex items-center gap-1 transition-colors" title="نسخ هذا الحقل لفتح حقل مشابه بسرعة">
+                        <span class="material-symbols-outlined text-xs">content_copy</span> نسخ الحقل
+                    </button>
+                    <button type="button" onclick="removeProductVariant(${i})" class="px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-[10px] font-bold flex items-center gap-0.5 transition-colors">
+                        <span class="material-symbols-outlined text-xs">delete</span> حذف
+                    </button>
+                </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-2">
-                <div>
-                    <label class="text-[10px] text-primary/70 block mb-0.5 font-bold">اسم اللون بالعربي *</label>
-                    <input type="text" value="${sanitizeHtml(v.colorNameAr || '')}" oninput="updateVariantField(${i}, 'colorNameAr', this.value)" class="input-field py-1 text-xs" placeholder="مثال: أسود ملكي">
+            <!-- Single Image per Field + Live Preview + Byte Compressor Badge -->
+            <div class="p-2.5 rounded-xl bg-primary/3 border border-primary/10 space-y-1.5">
+                <div class="flex flex-wrap items-center justify-between gap-1">
+                    <label class="text-[10px] text-primary font-bold flex items-center gap-1">
+                        <span class="material-symbols-outlined text-xs text-accent">photo_camera</span>
+                        <span>صورة هذا الحقل / اللون (تُضغط بالبايتات تلقائياً) *</span>
+                    </label>
+                    <div id="variant-byte-badge-${i}">${byteStatsHtml}</div>
                 </div>
-                <div>
-                    <label class="text-[10px] text-primary/70 block mb-0.5 font-bold">اسم اللون بالإنجليزي (EN)</label>
-                    <input type="text" value="${sanitizeHtml(v.colorNameEn || '')}" oninput="updateVariantField(${i}, 'colorNameEn', this.value)" class="input-field py-1 text-xs" placeholder="Royal Black">
-                </div>
-            </div>
-
-            <div>
-                <label class="text-[10px] text-primary/70 block mb-0.5 font-bold">صورة خاصة بهذا اللون (تتبدل تلقائياً عند النقر)</label>
-                <div class="flex gap-2">
-                    <input type="text" value="${sanitizeHtml(v.image || '')}" id="variant-img-${i}" oninput="updateVariantField(${i}, 'image', this.value)" class="input-field py-1 text-xs flex-1 text-left font-mono" dir="ltr" placeholder="images/hero_noon.jpg أو رابط مباشر">
-                    <label class="btn-gold px-2.5 py-1 rounded-xl cursor-pointer text-[10px] flex items-center gap-1 font-bold shrink-0 shadow-sm" title="اختاري صورة هذا اللون من جهازكِ">
+                <div class="flex gap-2 items-center">
+                    <img id="variant-img-preview-${i}" src="${sanitizeHtml(previewSrc)}" class="w-12 h-12 rounded-xl object-cover border border-primary/15 shrink-0 bg-white" onerror="this.src='../images/hero_noon.jpg'">
+                    <input type="text" value="${sanitizeHtml(v.image || '')}" id="variant-img-${i}"
+                           oninput="updateVariantField(${i}, 'image', this.value); const p=document.getElementById('variant-img-preview-${i}'); if(p) p.src=this.value || '../images/hero_noon.jpg';"
+                           class="input-field py-1.5 text-xs flex-1 text-left font-mono" dir="ltr" placeholder="استوردي صورة هذا الحقل أو ضعي الرابط">
+                    <label class="btn-gold px-3 py-2 rounded-xl cursor-pointer text-[10px] flex items-center gap-1 font-bold shrink-0 shadow-sm" title="اختاري صورة هذا الحقل وسيتم ضغطها بالبايتات تلقائياً">
                         <span class="material-symbols-outlined text-xs">upload_file</span>
-                        <span>استيراد صورة 📁</span>
+                        <span>رفع وضغط 📁</span>
                         <input type="file" accept="image/*" class="hidden" onchange="handleVariantImageUpload(this, ${i})">
                     </label>
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <!-- Color Name AR / EN + Optional Custom Price -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <div>
-                    <label class="text-[10px] text-primary/70 block mb-0.5">وصف مخصص لهذا اللون (اختياري)</label>
-                    <input type="text" value="${sanitizeHtml(v.descriptionAr || '')}" oninput="updateVariantField(${i}, 'descriptionAr', this.value)" class="input-field py-1 text-xs" placeholder="مثال: قماش تفته أسود ملكي مع تطريز">
+                    <label class="text-[10px] text-primary/75 block mb-0.5 font-bold">اسم اللون / الموديل (عربي) *</label>
+                    <input type="text" value="${sanitizeHtml(v.colorNameAr || '')}" oninput="updateVariantField(${i}, 'colorNameAr', this.value)" class="input-field py-1.5 text-xs" placeholder="مثال: ماروني ملكي">
                 </div>
                 <div>
-                    <label class="text-[10px] text-primary/70 block mb-0.5">مقاسات مخصصة لهذا اللون (اختياري)</label>
-                    <input type="text" value="${sanitizeHtml(Array.isArray(v.sizes) ? v.sizes.join(', ') : (v.sizes || ''))}" oninput="updateVariantField(${i}, 'sizes', this.value)" class="input-field py-1 text-xs" placeholder="38, 40, 42">
+                    <label class="text-[10px] text-primary/75 block mb-0.5 font-bold">اسم اللون (EN)</label>
+                    <input type="text" value="${sanitizeHtml(v.colorNameEn || '')}" oninput="updateVariantField(${i}, 'colorNameEn', this.value)" class="input-field py-1.5 text-xs" placeholder="Royal Burgundy">
+                </div>
+                <div>
+                    <label class="text-[10px] text-primary/75 block mb-0.5 font-bold">سعر خاص لهذا الحقل (اختياري)</label>
+                    <input type="number" value="${v.price ? Number(v.price) : ''}" oninput="updateVariantField(${i}, 'price', this.value)" class="input-field py-1.5 text-xs text-left font-mono" dir="ltr" placeholder="اتركيه فارغاً لاعتماد السعر الرئيسي">
+                </div>
+            </div>
+
+            <!-- Custom Description + Custom Sizes with Quick Chips -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                    <label class="text-[10px] text-primary/75 block mb-0.5 font-bold">تفاصيل / وصف خاص بهذا الحقل (اختياري)</label>
+                    <input type="text" value="${sanitizeHtml(v.descriptionAr || '')}" oninput="updateVariantField(${i}, 'descriptionAr', this.value)" class="input-field py-1.5 text-xs" placeholder="مثال: تطريز يدوي باللون الماروني الفاخر...">
+                </div>
+                <div>
+                    <label class="text-[10px] text-primary/75 block mb-0.5 font-bold">مقاسات هذا الحقل (اختياري)</label>
+                    <input type="text" id="variant-sizes-${i}" value="${sanitizeHtml(sizesStr)}" oninput="updateVariantField(${i}, 'sizes', this.value)" class="input-field py-1.5 text-xs" placeholder="S, M, L أو 38, 40, 42">
+                    <div class="flex flex-wrap gap-1 mt-1">
+                        ${quickSizesList.map(sz => `
+                            <button type="button" onclick="addVariantQuickSize(${i}, '${sz}')" class="px-1.5 py-0.5 rounded bg-primary/5 hover:bg-primary/15 border border-primary/10 text-[9px] font-bold">${sz}</button>
+                        `).join('')}
+                    </div>
                 </div>
             </div>
         </div>
-    `).join('');
+        `;
+    }).join('');
 };
 
 window.addProductVariant = () => {
+    const paletteRotation = [
+        { hex: '#800020', ar: 'ماروني / عنابي', en: 'Burgundy' },
+        { hex: '#0F0F0F', ar: 'أسود ملكي', en: 'Royal Black' },
+        { hex: '#D4AF37', ar: 'ذهبي ملكي', en: 'Royal Gold' },
+        { hex: '#1E293B', ar: 'كحلي ليلي', en: 'Midnight Navy' },
+        { hex: '#E8D8C8', ar: 'بيج شامبين', en: 'Champagne Beige' },
+        { hex: '#F4ACB7', ar: 'وردي بودر', en: 'Blush Pink' }
+    ];
+    const preset = paletteRotation[productVariants.length % paletteRotation.length];
+
     productVariants.push({
-        id: 'var_' + Date.now(),
-        hex: '#1B2E1D',
+        id: 'var_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        hex: preset.hex,
         colorNameAr: '',
         colorNameEn: '',
         image: '',
+        price: '',
         descriptionAr: '',
         descriptionEn: '',
-        sizes: []
+        sizes: [],
+        byteBadgeText: ''
     });
     renderProductVariantsUI();
+};
+
+window.duplicateProductVariant = (index) => {
+    const src = productVariants[index];
+    if (!src) return;
+    productVariants.splice(index + 1, 0, {
+        id: 'var_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        hex: src.hex || '#1B2E1D',
+        colorNameAr: src.colorNameAr ? `${src.colorNameAr} (نسخة)` : '',
+        colorNameEn: src.colorNameEn || '',
+        image: src.image || '',
+        price: src.price || '',
+        descriptionAr: src.descriptionAr || '',
+        descriptionEn: src.descriptionEn || '',
+        sizes: Array.isArray(src.sizes) ? [...src.sizes] : [],
+        byteBadgeText: src.byteBadgeText || ''
+    });
+    renderProductVariantsUI();
+    showToast(`تم نسخ الحقل #${index + 1} — يمكنكِ الآن تغيير صورته ولونه من دائرة الألوان`);
 };
 
 window.removeProductVariant = (index) => {
@@ -851,6 +1319,8 @@ window.updateVariantField = (index, field, value) => {
     if (!productVariants[index]) return;
     if (field === 'sizes') {
         productVariants[index].sizes = value.split(',').map(s => s.trim()).filter(Boolean);
+    } else if (field === 'price') {
+        productVariants[index].price = value ? parseInt(value, 10) || '' : '';
     } else {
         productVariants[index][field] = value;
     }
@@ -859,36 +1329,54 @@ window.updateVariantField = (index, field, value) => {
 window.handleVariantImageUpload = async (inputEl, index) => {
     if (!inputEl.files || !inputEl.files[0]) return;
     const file = inputEl.files[0];
-    if (file.size > 12 * 1024 * 1024) {
-        showToast("حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 12 ميجابايت", true);
+    if (file.size > 15 * 1024 * 1024) {
+        showToast("حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 15 ميجابايت", true);
         return;
     }
     try {
-        const base64Data = await compressImageFile(file);
-        updateVariantField(index, 'image', base64Data);
+        const stats = await compressImageFileWithStats(file);
+        updateVariantField(index, 'image', stats.dataUrl);
+        const badgeText = `⚡ ${formatBytes(stats.originalBytes)} ← ${formatBytes(stats.compressedBytes)} (-${stats.savedPercent}%)`;
+        if (productVariants[index]) {
+            productVariants[index].byteBadgeText = badgeText;
+        }
         const input = document.getElementById(`variant-img-${index}`);
-        if (input) input.value = base64Data;
-        showToast("تم استيراد وضغط صورة اللون بنجاح من جهازكِ!");
+        if (input) input.value = stats.dataUrl;
+        const preview = document.getElementById(`variant-img-preview-${index}`);
+        if (preview) preview.src = stats.dataUrl;
+        const badgeWrap = document.getElementById(`variant-byte-badge-${index}`);
+        if (badgeWrap) {
+            badgeWrap.innerHTML = `<span class="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">${sanitizeHtml(badgeText)}</span>`;
+        }
+        showToast(`⚡ تم ضغط ورفع صورة الحقل #${index + 1}: ${formatBytes(stats.originalBytes)} ← ${formatBytes(stats.compressedBytes)} (وفّرت ${stats.savedPercent}%)`);
     } catch (err) {
-        showToast("فشل استيراد صورة اللون", true);
+        showToast("فشل استيراد صورة الحقل", true);
     }
 };
 
 window.autoTranslateAllProductFields = async () => {
     const nameAr = document.getElementById('product-name-ar')?.value;
     const descAr = document.getElementById('product-desc-ar')?.value;
+    const primaryColorAr = document.getElementById('product-primary-color-ar')?.value;
 
-    if (!nameAr && !descAr && productVariants.length === 0) {
+    if (!nameAr && !descAr && !primaryColorAr && productVariants.length === 0) {
         showToast("يرجى كتابة اسم أو وصف المنتج بالعربي أولاً", true);
         return;
     }
 
-    showToast("جاري ترجمة كافة نصوص القطعة وتشكيلاتها للإنكليزية...");
+    showToast("جاري ترجمة كافة نصوص القطعة وحقولها للإنكليزية...");
 
     if (nameAr) {
         const nameEn = await translateArabicToEnglish(nameAr);
         const nameEnEl = document.getElementById('product-name-en');
         if (nameEnEl) nameEnEl.value = nameEn;
+    }
+
+    if (primaryColorAr) {
+        const primaryColorEnEl = document.getElementById('product-primary-color-en');
+        if (primaryColorEnEl && !primaryColorEnEl.value.trim()) {
+            primaryColorEnEl.value = await translateArabicToEnglish(primaryColorAr);
+        }
     }
 
     for (let i = 0; i < productVariants.length; i++) {
@@ -910,6 +1398,18 @@ window.openProductModal = () => {
     document.getElementById('product-modal-title').innerText = 'إضافة قطعة جديدة';
     document.getElementById('product-form')?.reset();
     document.getElementById('product-edit-id').value = '';
+
+    const primaryPreview = document.getElementById('product-primary-img-preview');
+    if (primaryPreview) primaryPreview.src = '../images/hero_noon.jpg';
+    const primaryByteBadge = document.getElementById('primary-img-byte-badge');
+    if (primaryByteBadge) {
+        primaryByteBadge.innerText = '';
+        primaryByteBadge.classList.add('hidden');
+    }
+    const primarySwatch = document.getElementById('primary-color-swatch-preview');
+    if (primarySwatch) primarySwatch.style.backgroundColor = '#1B2E1D';
+    const primaryHex = document.getElementById('product-primary-color-hex');
+    if (primaryHex) primaryHex.value = '#1B2E1D';
 
     productVariants = [];
     renderProductVariantsUI();
@@ -956,7 +1456,7 @@ window.editProduct = (id) => {
     if (!p) return;
     editingProductId = numId;
 
-    document.getElementById('product-modal-title').innerText = 'تعديل بيانات القطعة';
+    document.getElementById('product-modal-title').innerText = 'تعديل بيانات القطعة وحقولها';
     document.getElementById('product-edit-id').value = p.id;
 
     const storeSelect = document.getElementById('product-store-select');
@@ -974,19 +1474,45 @@ window.editProduct = (id) => {
     document.getElementById('product-sizes').value = (p.sizes || []).join(', ');
     document.getElementById('product-desc-ar').value = p.descriptionAr || '';
 
-    // Load Color Variants
+    const primaryPreview = document.getElementById('product-primary-img-preview');
+    if (primaryPreview) primaryPreview.src = resolveDashboardImg(p.image);
+    const primaryByteBadge = document.getElementById('primary-img-byte-badge');
+    if (primaryByteBadge) {
+        if (p.image && p.image.startsWith('data:')) {
+            primaryByteBadge.innerText = `حجم الصورة: ${formatBytes(estimateDataUrlBytes(p.image))}`;
+            primaryByteBadge.classList.remove('hidden');
+        } else {
+            primaryByteBadge.classList.add('hidden');
+        }
+    }
+
+    const pHex = p.primaryColorHex || '#1B2E1D';
+    const primarySwatch = document.getElementById('primary-color-swatch-preview');
+    if (primarySwatch) primarySwatch.style.backgroundColor = pHex;
+    const primaryHexInput = document.getElementById('product-primary-color-hex');
+    if (primaryHexInput) primaryHexInput.value = pHex;
+    const primaryArInput = document.getElementById('product-primary-color-ar');
+    if (primaryArInput) primaryArInput.value = p.primaryColorNameAr || '';
+    const primaryEnInput = document.getElementById('product-primary-color-en');
+    if (primaryEnInput) primaryEnInput.value = p.primaryColorNameEn || '';
+
+    // Load Unlimited Color/Image Variants
     if (Array.isArray(p.colors) && p.colors.length > 0) {
         productVariants = p.colors.map(c => {
             if (typeof c === 'object') {
+                const imgVal = c.image || '';
+                const existingBytes = imgVal.startsWith('data:') ? `الحجم: ${formatBytes(estimateDataUrlBytes(imgVal))}` : '';
                 return {
                     id: c.id || ('var_' + Math.random().toString(36).substr(2, 9)),
                     hex: c.hex || '#1B2E1D',
                     colorNameAr: c.colorNameAr || c.ar || c.name || '',
                     colorNameEn: c.colorNameEn || c.name || '',
-                    image: c.image || '',
+                    image: imgVal,
+                    price: c.price || '',
                     descriptionAr: c.descriptionAr || '',
                     descriptionEn: c.descriptionEn || '',
-                    sizes: Array.isArray(c.sizes) ? c.sizes : []
+                    sizes: Array.isArray(c.sizes) ? c.sizes : [],
+                    byteBadgeText: existingBytes
                 };
             }
             return {
@@ -995,9 +1521,11 @@ window.editProduct = (id) => {
                 colorNameAr: '',
                 colorNameEn: '',
                 image: '',
+                price: '',
                 descriptionAr: '',
                 descriptionEn: '',
-                sizes: []
+                sizes: [],
+                byteBadgeText: ''
             };
         });
     } else {
@@ -1019,7 +1547,11 @@ window.saveProduct = async (e) => {
     const sizes = document.getElementById('product-sizes').value.split(',').map(s => s.trim()).filter(Boolean);
     const desc = document.getElementById('product-desc-ar').value.trim();
 
-    // Collect all images from variants
+    const primaryColorHex = document.getElementById('product-primary-color-hex')?.value || '#1B2E1D';
+    const primaryColorNameAr = document.getElementById('product-primary-color-ar')?.value.trim() || '';
+    const primaryColorNameEn = document.getElementById('product-primary-color-en')?.value.trim() || '';
+
+    // Collect all images from unlimited variants
     const allImages = [image];
     productVariants.forEach(v => {
         if (v.image && !allImages.includes(v.image)) {
@@ -1027,12 +1559,13 @@ window.saveProduct = async (e) => {
         }
     });
 
-    const formattedColors = productVariants.map(v => ({
+    const formattedColors = productVariants.map((v, idx) => ({
         id: v.id || ('var_' + Math.random().toString(36).substr(2, 9)),
         hex: v.hex || '#1B2E1D',
-        colorNameAr: v.colorNameAr || 'لون قياسي',
-        colorNameEn: v.colorNameEn || 'Standard',
+        colorNameAr: v.colorNameAr || `لون #${idx + 1}`,
+        colorNameEn: v.colorNameEn || `Color #${idx + 1}`,
         image: v.image || image,
+        price: v.price ? Number(v.price) : price,
         descriptionAr: v.descriptionAr || desc,
         descriptionEn: v.descriptionEn || (nameEn + ' exquisite piece.'),
         sizes: (Array.isArray(v.sizes) && v.sizes.length) ? v.sizes : (sizes.length ? sizes : ["Standard"])
@@ -1051,6 +1584,9 @@ window.saveProduct = async (e) => {
         currencyEn: "IQD ",
         image,
         images: allImages,
+        primaryColorHex,
+        primaryColorNameAr,
+        primaryColorNameEn,
         colors: formattedColors,
         sizes: sizes.length ? sizes : ["Standard"],
         descriptionAr: desc,
@@ -1060,7 +1596,7 @@ window.saveProduct = async (e) => {
     };
 
     products = await db.saveProduct(prodObj);
-    showToast(editingProductId ? "تم تحديث المنتج وتشكيلات الألوان بنجاح!" : "تمت إضافة المنتج الجديد وتشكيلات الألوان بنجاح!");
+    showToast(editingProductId ? "تم تحديث المنتج وحقوله وألوانه بنجاح!" : "تمت إضافة المنتج الجديد وكافة حقوله بنجاح!");
 
     closeProductModal();
     renderProductsSection();

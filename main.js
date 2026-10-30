@@ -485,40 +485,48 @@ window.viewProduct = (id) => {
   state.currentQuantity = 1;
   document.getElementById('product-quantity').innerText = 1;
 
-  // Colors & Variants Studio integration
+  // Colors & Unlimited Dynamic Fields Studio integration
   const swatchContainer = document.getElementById('color-swatches');
   const colorNameLabel = document.getElementById('product-selected-color-name');
   const colorWrapper = document.getElementById('color-selection-wrap');
 
-  if (p.colors && Array.isArray(p.colors) && p.colors.length > 0) {
+  const hasVariants = p.colors && Array.isArray(p.colors) && p.colors.length > 0;
+  const hasPrimaryColor = Boolean(p.primaryColorNameAr || p.primaryColorNameEn);
+
+  if (hasVariants || hasPrimaryColor) {
     if (colorWrapper) colorWrapper.classList.remove('hidden');
     if (swatchContainer) swatchContainer.classList.remove('hidden');
 
     // Default to primary original product
     state.currentColor = null;
 
+    const primaryLabel = lang === 'en'
+      ? (p.primaryColorNameEn || 'Original')
+      : (p.primaryColorNameAr || 'اللون الأساسي');
+
     if (colorNameLabel) {
-      colorNameLabel.innerText = lang === 'en' ? '(Original)' : '(اللون الأساسي)';
+      colorNameLabel.innerText = `(${primaryLabel})`;
     }
 
     if (swatchContainer) {
-      // 1. Primary Grey Swatch Button (يمثل المنتج الأساسي الأول المعروض للرجوع إليه دائماً)
+      const primaryBgStyle = p.primaryColorHex ? `style="background-color:${sanitizeHtml(p.primaryColorHex)}"` : '';
+      // 1. Primary Swatch Button (يمثل الحقل الأساسي الأول للرجوع إليه دائماً)
       const originalBtnHtml = `
-        <button class="color-swatch active primary-original" 
-                title="${lang === 'en' ? 'Original / Primary' : 'اللون الأساسي / العرض الأصلي'}" 
+        <button class="color-swatch active primary-original" ${primaryBgStyle}
+                title="${sanitizeHtml(primaryLabel)}" 
                 onclick="switchProductToOriginal(this)">
-          <span class="text-[9px] text-white/90 font-bold select-none">★</span>
+          <span class="text-[9px] text-white/90 font-bold select-none drop-shadow">★</span>
         </button>
       `;
 
-      // 2. Additional Color Variant Swatches
-      const variantsHtml = p.colors.map((c, i) => {
+      // 2. Unlimited Additional Color/Image Field Swatches
+      const variantsHtml = (p.colors || []).map((c, i) => {
         const hex = typeof c === 'object' ? (c.hex || '#1B2E1D') : String(c);
         const name = typeof c === 'object' ? (lang === 'en' ? (c.colorNameEn || c.name || '') : (c.colorNameAr || c.ar || '')) : '';
         return `
           <button class="color-swatch" 
                   style="background-color:${sanitizeHtml(hex)}" 
-                  title="${sanitizeHtml(name || (lang === 'en' ? `Color ${i+1}` : `لون ${i+1}`))}" 
+                  title="${sanitizeHtml(name || (lang === 'en' ? `Option ${i+1}` : `حقل ${i+1}`))}" 
                   onclick="switchProductColorVariant(${i}, this)">
           </button>
         `;
@@ -576,7 +584,16 @@ window.switchProductToOriginal = (btn) => {
   // Update label
   const colorNameLabel = document.getElementById('product-selected-color-name');
   if (colorNameLabel) {
-    colorNameLabel.innerText = lang === 'en' ? '(Original)' : '(اللون الأساسي)';
+    const primaryLabel = lang === 'en'
+      ? (p.primaryColorNameEn || 'Original')
+      : (p.primaryColorNameAr || 'اللون الأساسي');
+    colorNameLabel.innerText = `(${primaryLabel})`;
+  }
+
+  // Restore original price
+  const priceEl = document.getElementById('product-price');
+  if (priceEl) {
+    priceEl.innerText = `${lang === 'en' ? (p.currencyEn || 'IQD ') : (p.currencyAr || 'د.ع ')}${Number(p.price || 0).toLocaleString()}`;
   }
 
   // Restore main gallery
@@ -624,6 +641,13 @@ window.switchProductColorVariant = (index, btn) => {
       ? (lang === 'en' ? (variant.colorNameEn || variant.name || '') : (variant.colorNameAr || variant.ar || ''))
       : '';
     colorNameLabel.innerText = cLabel ? `(${cLabel})` : '';
+  }
+
+  // Update price if this field has a custom price, otherwise show product price
+  const priceEl = document.getElementById('product-price');
+  if (priceEl) {
+    const activePrice = (typeof variant === 'object' && variant.price) ? Number(variant.price) : Number(p.price || 0);
+    priceEl.innerText = `${lang === 'en' ? (p.currencyEn || 'IQD ') : (p.currencyAr || 'د.ع ')}${activePrice.toLocaleString()}`;
   }
 
   // If this variant has its own image, update the main gallery
@@ -762,10 +786,16 @@ window.addToBag = () => {
 
   const colorName = state.currentColor && typeof state.currentColor === 'object'
     ? (lang === 'en' ? (state.currentColor.colorNameEn || state.currentColor.name || '') : (state.currentColor.colorNameAr || state.currentColor.ar || ''))
-    : '';
+    : (lang === 'en' ? (p.primaryColorNameEn || '') : (p.primaryColorNameAr || ''));
+  const colorHex = (state.currentColor && typeof state.currentColor === 'object')
+    ? (state.currentColor.hex || '')
+    : (p.primaryColorHex || '');
   const itemImage = (state.currentColor && typeof state.currentColor === 'object' && state.currentColor.image)
     ? state.currentColor.image
     : p.image;
+  const itemPrice = (state.currentColor && typeof state.currentColor === 'object' && state.currentColor.price)
+    ? Number(state.currentColor.price)
+    : (Number(p.price) || 0);
 
   state.cart.push({
     id: p.id,
@@ -775,13 +805,13 @@ window.addToBag = () => {
     storeWhatsapp: store.whatsapp,
     nameAr: p.nameAr,
     nameEn: p.nameEn,
-    price: Number(p.price) || 0,
+    price: itemPrice,
     currencyAr: p.currencyAr || 'د.ع ',
     currencyEn: p.currencyEn || 'IQD ',
     image: itemImage,
     selectedSize: state.currentSize || 'Standard',
     selectedColor: colorName,
-    selectedColorHex: (state.currentColor && typeof state.currentColor === 'object') ? state.currentColor.hex : '',
+    selectedColorHex: colorHex,
     quantity: state.currentQuantity,
     cartId: Date.now() + Math.random()
   });

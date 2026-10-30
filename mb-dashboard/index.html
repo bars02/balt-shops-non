@@ -698,16 +698,54 @@
                 </div>
             </div>
 
-            <!-- Primary Image -->
-            <div>
-                <label class="font-bold block mb-1">الصورة الرئيسية للمنتج (الواجهة) *</label>
-                <div class="flex gap-2">
-                    <input type="text" id="product-image-url" class="input-field flex-1 text-left font-mono" dir="ltr" placeholder="images/hero_noon.jpg أو رابط مباشر" required>
-                    <label class="btn-gold px-3.5 py-2.5 rounded-xl cursor-pointer text-xs flex items-center gap-1 shrink-0 font-bold" title="اختاري صورة من جهازكِ">
-                        <span class="material-symbols-outlined text-sm">upload_file</span>
-                        <span>استيراد صورة 📁</span>
-                        <input type="file" accept="image/*" class="hidden" onchange="handleImageUpload(this, 'product-image-url')">
+            <!-- Smart Byte Image Compressor Bar -->
+            <div class="p-3 bg-emerald-950/5 rounded-2xl border border-emerald-800/20 flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-emerald-700 text-base">bolt</span>
+                    <div>
+                        <p class="font-bold text-[11px] text-primary">ضاغط الصور الذكي بالبايتات (Byte Compressor)</p>
+                        <p class="text-[9px] text-primary/60">يضغط أي صورة ترفعينها تلقائياً لتقليل حجم البيانات وتسريع فتح الموقع</p>
+                    </div>
+                </div>
+                <select id="image-compression-mode" class="input-field !w-auto py-1 px-2.5 text-[10px] font-bold bg-white border-emerald-800/25">
+                    <option value="ultra" selected>⚡ ضغط فائق بالبايتات (35KB - 70KB أسرع تحميل)</option>
+                    <option value="smart">✨ ضغط ذكي متوازن (70KB - 110KB دقة ممتازة)</option>
+                    <option value="hd">💎 جودة عالية مضغوطة (120KB - 190KB)</option>
+                </select>
+            </div>
+
+            <!-- Primary Image + Primary Color -->
+            <div class="p-3.5 bg-primary/5 rounded-2xl border border-primary/10 space-y-3">
+                <div class="flex items-center justify-between">
+                    <label class="font-bold text-primary flex items-center gap-1">
+                        <span class="material-symbols-outlined text-sm text-accent">image</span>
+                        <span>الصورة الأساسية للقطعة (الحقل الرئيسي #1) *</span>
                     </label>
+                    <span id="primary-img-byte-badge" class="hidden text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300"></span>
+                </div>
+                <div class="flex gap-2 items-center">
+                    <img id="product-primary-img-preview" src="../images/hero_noon.jpg" class="w-12 h-12 rounded-xl object-cover border border-primary/15 shrink-0 bg-white" onerror="this.src='../images/hero_noon.jpg'">
+                    <input type="text" id="product-image-url" oninput="const p=document.getElementById('product-primary-img-preview'); if(p) p.src=this.value || '../images/hero_noon.jpg';" class="input-field flex-1 text-left font-mono" dir="ltr" placeholder="images/hero_noon.jpg أو استوردي صورة مضغوطة" required>
+                    <label class="btn-gold px-3.5 py-2.5 rounded-xl cursor-pointer text-xs flex items-center gap-1 shrink-0 font-bold shadow-sm" title="اختاري صورة وسيتم ضغطها بالبايتات تلقائياً">
+                        <span class="material-symbols-outlined text-sm">upload_file</span>
+                        <span>رفع وضغط 📁</span>
+                        <input type="file" accept="image/*" class="hidden" onchange="handleImageUpload(this, 'product-image-url', 'product-primary-img-preview', 'primary-img-byte-badge')">
+                    </label>
+                </div>
+
+                <!-- Optional Primary Item Color via Color Wheel -->
+                <div class="pt-2 border-t border-primary/10 flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <button type="button" onclick="openColorWheelPicker('primary')" class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-accent/50 hover:border-accent shadow-sm transition-all">
+                            <span id="primary-color-swatch-preview" class="w-5 h-5 rounded-full border border-black/20 shadow-inner inline-block" style="background-color: #1B2E1D;"></span>
+                            <span class="text-[10px] font-bold text-primary">🎨 دائرة الألوان (لون العرض الأساسي)</span>
+                        </button>
+                        <input type="hidden" id="product-primary-color-hex" value="#1B2E1D">
+                    </div>
+                    <div class="flex items-center gap-1.5 flex-1 min-w-[180px]">
+                        <input type="text" id="product-primary-color-ar" class="input-field py-1 text-[11px]" placeholder="اسم اللون الأساسي (مثال: أخضر زمردي)">
+                        <input type="text" id="product-primary-color-en" class="input-field py-1 text-[11px]" placeholder="Emerald Green">
+                    </div>
                 </div>
             </div>
 
@@ -738,26 +776,33 @@
                 <textarea id="product-desc-ar" class="input-field h-16 resize-none" placeholder="تفاصيل القماش الفاخر، قصة الفستان، التطريز الحرفي..."></textarea>
             </div>
 
-            <!-- ================= COLOR VARIATIONS STUDIO ================= -->
-            <div class="p-4 bg-primary/5 rounded-2xl border border-primary/15 space-y-3">
-                <div class="flex justify-between items-center">
+            <!-- ================= UNLIMITED DYNAMIC PRODUCT FIELDS & COLOR WHEEL STUDIO ================= -->
+            <div class="p-4 bg-primary/5 rounded-2xl border-2 border-accent/40 space-y-3">
+                <div class="flex flex-wrap justify-between items-center gap-2">
                     <div>
                         <h4 class="font-serif font-bold text-xs text-primary flex items-center gap-1.5">
-                            <span class="material-symbols-outlined text-sm text-accent">palette</span>
-                            <span>استوديو تشكيلات وألوان القطعة (Color Variations)</span>
+                            <span class="material-symbols-outlined text-sm text-accent">library_add</span>
+                            <span>حقول إضافية لا متناهية لنفس القطعة (صورة + دائرة الألوان + تفاصيل لكل حقل)</span>
+                            <span id="variants-count-badge" class="bg-primary text-accent px-2 py-0.5 rounded-full text-[9px] font-mono">0 حقول</span>
                         </h4>
-                        <p class="text-[10px] text-primary/60 mt-0.5">يمكنكِ إضافة أكثر من لون لنفس القطعة، مع تحديد صورة ووصف ومقاسات خاصة بكل لون لتقليبها في صفحة المنتج.</p>
+                        <p class="text-[10px] text-primary/65 mt-0.5">لأن كل خانة تأخذ صورة واحدة، يمكنكِ فتح عدد لا نهائي من الحقول هنا؛ كل حقل ترفقين به صورته المضغوطة وتختارين لونه من دائرة الألوان مع تفاصيله ومقاساته.</p>
                     </div>
-                    <button type="button" onclick="addProductVariant()" class="btn-gold px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 shadow-sm shrink-0">
+                    <button type="button" onclick="addProductVariant()" class="btn-gold px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1 shadow-md shrink-0">
                         <span class="material-symbols-outlined text-sm">add_circle</span>
-                        <span>إضافة لون جديد</span>
+                        <span>+ فتح حقل جديد (صورة ولون)</span>
                     </button>
                 </div>
 
-                <!-- Dynamic Variants Container -->
+                <!-- Dynamic Unlimited Fields Container -->
                 <div id="product-variants-list" class="space-y-3 pt-1">
                     <!-- Populated dynamically via dashboard.js -->
                 </div>
+
+                <!-- Bottom Quick-Add Button for Unlimited Fields -->
+                <button type="button" onclick="addProductVariant()" class="w-full py-2.5 rounded-xl border-2 border-dashed border-accent/60 hover:border-accent hover:bg-accent/10 text-primary font-bold text-xs flex items-center justify-center gap-1.5 transition-all">
+                    <span class="material-symbols-outlined text-base text-accent">add_photo_alternate</span>
+                    <span>+ فتح حقل إضافي آخر لهذه القطعة (حقول لا متناهية)</span>
+                </button>
             </div>
 
             <div class="pt-4 flex gap-3 border-t border-primary/10">
@@ -920,6 +965,86 @@
     </div>
 </div>
 
-<script type="module" src="./dashboard.js?v=10.0"></script>
+<!-- ===================== MODAL: INTERACTIVE 360° COLOR WHEEL PICKER (أداة دائرة الألوان التفاعلية) ===================== -->
+<div class="modal-bg" id="color-wheel-picker-modal" style="z-index: 260;">
+    <div class="bg-white rounded-3xl p-6 max-w-sm w-full border-2 border-accent shadow-2xl space-y-4 text-xs">
+        <div class="flex justify-between items-center border-b border-primary/10 pb-3">
+            <div>
+                <h3 class="serif text-base font-bold text-primary flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-accent text-lg">palette</span>
+                    <span>أداة دائرة الألوان التفاعلية</span>
+                </h3>
+                <p class="text-[10px] text-primary/60">حرّكي الدائرة داخل عجلة الألوان لاختيار درجة اللون بدقة</p>
+            </div>
+            <button type="button" onclick="closeColorWheelPicker()" class="material-symbols-outlined text-primary/50 hover:text-primary p-1">close</button>
+        </div>
+
+        <!-- Interactive 360 Color Wheel Canvas + Draggable Indicator Circle -->
+        <div class="flex flex-col items-center justify-center py-1">
+            <div id="color-wheel-stage" class="relative w-[220px] h-[220px] rounded-full shadow-lg border-4 border-white ring-2 ring-accent/40 select-none touch-none cursor-crosshair">
+                <canvas id="color-wheel-canvas" width="220" height="220" class="w-full h-full rounded-full block"></canvas>
+                <!-- Draggable Circle Handle -->
+                <div id="color-wheel-cursor"
+                     class="w-7 h-7 rounded-full border-2 border-white shadow-[0_0_8px_rgba(0,0,0,0.65)] pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 transition-transform duration-75"
+                     style="left: 110px; top: 110px; background-color: #1B2E1D;">
+                </div>
+            </div>
+        </div>
+
+        <!-- Brightness / Darkness Slider (درجة الإضاءة والقتامة) -->
+        <div class="space-y-1 bg-primary/5 p-3 rounded-2xl border border-primary/10">
+            <div class="flex justify-between items-center text-[10px] font-bold text-primary/80">
+                <span>درجة الإضاءة والعمق (فاتح ↔ غامق/أسود)</span>
+                <span id="color-wheel-val-label" class="font-mono">100%</span>
+            </div>
+            <input type="range" id="color-wheel-brightness" min="5" max="100" value="100"
+                   oninput="onColorWheelBrightnessChange(this.value)"
+                   class="w-full accent-primary cursor-pointer h-2 rounded-lg">
+        </div>
+
+        <!-- Live Color Preview + Hex + Auto Name -->
+        <div class="flex items-center gap-3 p-3 rounded-2xl bg-primary/5 border border-primary/15">
+            <div id="color-wheel-live-swatch" class="w-12 h-12 rounded-2xl border-2 border-white shadow-md shrink-0" style="background-color: #1B2E1D;"></div>
+            <div class="flex-1 min-w-0 space-y-1">
+                <div class="flex items-center gap-1.5">
+                    <span class="text-[10px] font-bold text-primary/70">الكود:</span>
+                    <input type="text" id="color-wheel-hex-input" dir="ltr" value="#1B2E1D"
+                           oninput="onColorWheelHexManualInput(this.value)"
+                           class="input-field !py-1 !px-2 font-mono text-xs font-bold uppercase text-left w-28 bg-white">
+                </div>
+                <p id="color-wheel-suggested-name" class="text-[10px] font-bold text-accent truncate">أخضر زمردي ملكي (Emerald Green)</p>
+            </div>
+        </div>
+
+        <!-- Quick Fashion Presets -->
+        <div>
+            <p class="text-[10px] font-bold text-primary/60 mb-1.5">درجات الأزياء الأكثر طلباً (نقرة سريعة):</p>
+            <div class="flex flex-wrap gap-1.5" id="color-wheel-presets">
+                <button type="button" onclick="selectPresetOnWheel('#0F0F0F', 'أسود ملكي', 'Royal Black')" class="w-6 h-6 rounded-full border border-black/20 shadow-sm hover:scale-110 transition-transform" style="background:#0F0F0F" title="أسود ملكي"></button>
+                <button type="button" onclick="selectPresetOnWheel('#FAF8F5', 'أبيض لؤلؤي', 'Pearl White')" class="w-6 h-6 rounded-full border border-black/20 shadow-sm hover:scale-110 transition-transform" style="background:#FAF8F5" title="أبيض لؤلؤي"></button>
+                <button type="button" onclick="selectPresetOnWheel('#1B4D3E', 'أخضر زمردي', 'Emerald Green')" class="w-6 h-6 rounded-full border border-black/20 shadow-sm hover:scale-110 transition-transform" style="background:#1B4D3E" title="أخضر زمردي"></button>
+                <button type="button" onclick="selectPresetOnWheel('#800020', 'ماروني / عنابي', 'Burgundy')" class="w-6 h-6 rounded-full border border-black/20 shadow-sm hover:scale-110 transition-transform" style="background:#800020" title="ماروني / عنابي"></button>
+                <button type="button" onclick="selectPresetOnWheel('#B91C1C', 'أحمر ياقوتي', 'Ruby Red')" class="w-6 h-6 rounded-full border border-black/20 shadow-sm hover:scale-110 transition-transform" style="background:#B91C1C" title="أحمر ياقوتي"></button>
+                <button type="button" onclick="selectPresetOnWheel('#D4AF37', 'ذهبي ملكي', 'Royal Gold')" class="w-6 h-6 rounded-full border border-black/20 shadow-sm hover:scale-110 transition-transform" style="background:#D4AF37" title="ذهبي ملكي"></button>
+                <button type="button" onclick="selectPresetOnWheel('#E8D8C8', 'بيج شامبين', 'Champagne Beige')" class="w-6 h-6 rounded-full border border-black/20 shadow-sm hover:scale-110 transition-transform" style="background:#E8D8C8" title="بيج شامبين"></button>
+                <button type="button" onclick="selectPresetOnWheel('#1E293B', 'كحلي ليلي', 'Midnight Navy')" class="w-6 h-6 rounded-full border border-black/20 shadow-sm hover:scale-110 transition-transform" style="background:#1E293B" title="كحلي ليلي"></button>
+                <button type="button" onclick="selectPresetOnWheel('#F4ACB7', 'وردي بودر', 'Blush Pink')" class="w-6 h-6 rounded-full border border-black/20 shadow-sm hover:scale-110 transition-transform" style="background:#F4ACB7" title="وردي بودر"></button>
+                <button type="button" onclick="selectPresetOnWheel('#9D4EDD', 'بنفسجي ملكي', 'Royal Lavender')" class="w-6 h-6 rounded-full border border-black/20 shadow-sm hover:scale-110 transition-transform" style="background:#9D4EDD" title="بنفسجي ملكي"></button>
+                <button type="button" onclick="selectPresetOnWheel('#556B2F', 'زيتوني فستقي', 'Olive Green')" class="w-6 h-6 rounded-full border border-black/20 shadow-sm hover:scale-110 transition-transform" style="background:#556B2F" title="زيتوني فستقي"></button>
+                <button type="button" onclick="selectPresetOnWheel('#5C4033', 'بني شوكولا', 'Chocolate Brown')" class="w-6 h-6 rounded-full border border-black/20 shadow-sm hover:scale-110 transition-transform" style="background:#5C4033" title="بني شوكولا"></button>
+            </div>
+        </div>
+
+        <div class="pt-2 flex gap-2">
+            <button type="button" onclick="applyColorWheelSelection()" class="btn-gold flex-1 py-3 rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-1">
+                <span class="material-symbols-outlined text-sm">check_circle</span>
+                <span>اعتماد هذا اللون للحقل</span>
+            </button>
+            <button type="button" onclick="closeColorWheelPicker()" class="btn-outline px-5 py-3 rounded-xl text-xs">إلغاء</button>
+        </div>
+    </div>
+</div>
+
+<script type="module" src="./dashboard.js?v=11.0"></script>
 </body>
 </html>

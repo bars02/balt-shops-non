@@ -1,4 +1,4 @@
-// ==============================================================================
+ // ==============================================================================
 // NOON Platform - Resilient Security & Unified Data Access Layer (db.js)
 // Provides XSS protection, Supabase Cloud Synchronization & Local Storage Fallback
 // ==============================================================================
@@ -226,26 +226,34 @@ export const db = {
         const { data, error } = await q;
 
         if (!error && Array.isArray(data)) {
-          const prods = data.map(p => ({
-            id: Number(p.id),
-            storeId: p.store_id,
-            category: p.category || 'all',
-            nameAr: p.name_ar || '',
-            nameEn: p.name_en || p.name_ar || '',
-            price: Number(p.price) || 0,
-            currencyAr: p.currency_ar || 'د.ع ',
-            currencyEn: p.currency_en || 'IQD ',
-            image: p.image || '',
-            images: Array.isArray(p.images) && p.images.length > 0 ? p.images : (p.image ? [p.image] : []),
-            descriptionAr: p.description_ar || '',
-            descriptionEn: p.description_en || '',
-            heritageAr: p.heritage_ar || '',
-            heritageEn: p.heritage_en || '',
-            colors: Array.isArray(p.colors) ? p.colors : [],
-            variants: Array.isArray(p.colors) ? p.colors : [],
-            sizes: Array.isArray(p.sizes) && p.sizes.length > 0 ? p.sizes : ['Standard'],
-            available: p.is_available !== false
-          }));
+          const prods = data.map(p => {
+            const rawColors = Array.isArray(p.colors) ? p.colors : [];
+            const pMeta = (rawColors[0] && typeof rawColors[0] === 'object' && rawColors[0]._primaryMeta) ? rawColors[0]._primaryMeta : {};
+            const cleanColors = rawColors.filter(c => !(c && typeof c === 'object' && c._onlyPrimaryMeta));
+            return {
+              id: Number(p.id),
+              storeId: p.store_id,
+              category: p.category || 'all',
+              nameAr: p.name_ar || '',
+              nameEn: p.name_en || p.name_ar || '',
+              price: Number(p.price) || 0,
+              currencyAr: p.currency_ar || 'د.ع ',
+              currencyEn: p.currency_en || 'IQD ',
+              image: p.image || '',
+              images: Array.isArray(p.images) && p.images.length > 0 ? p.images : (p.image ? [p.image] : []),
+              descriptionAr: p.description_ar || '',
+              descriptionEn: p.description_en || '',
+              heritageAr: p.heritage_ar || '',
+              heritageEn: p.heritage_en || '',
+              primaryColorHex: pMeta.hex || '#1B2E1D',
+              primaryColorNameAr: pMeta.nameAr || '',
+              primaryColorNameEn: pMeta.nameEn || '',
+              colors: cleanColors,
+              variants: cleanColors,
+              sizes: Array.isArray(p.sizes) && p.sizes.length > 0 ? p.sizes : ['Standard'],
+              available: p.is_available !== false
+            };
+          });
           if (!storeId) {
             safeLocalSet('noon_products', prods);
           }
@@ -289,6 +297,18 @@ export const db = {
 
     if (this.isCloudReady()) {
       try {
+        const pMeta = (prodObj.primaryColorHex || prodObj.primaryColorNameAr || prodObj.primaryColorNameEn)
+          ? { hex: prodObj.primaryColorHex || '#1B2E1D', nameAr: prodObj.primaryColorNameAr || '', nameEn: prodObj.primaryColorNameEn || '' }
+          : null;
+        let cloudColors = Array.isArray(prodObj.colors) ? prodObj.colors.map(c => (typeof c === 'object' ? { ...c } : { hex: String(c) })) : [];
+        if (pMeta) {
+          if (cloudColors.length > 0) {
+            cloudColors[0]._primaryMeta = pMeta;
+          } else {
+            cloudColors = [{ _onlyPrimaryMeta: true, _primaryMeta: pMeta }];
+          }
+        }
+
         const { error } = await supabaseClient.from('products').upsert({
           id: prodObj.id,
           store_id: prodObj.storeId,
@@ -304,7 +324,7 @@ export const db = {
           description_en: prodObj.descriptionEn || '',
           heritage_ar: prodObj.heritageAr || '',
           heritage_en: prodObj.heritageEn || '',
-          colors: prodObj.colors || [],
+          colors: cloudColors,
           sizes: prodObj.sizes || ['Standard'],
           is_available: prodObj.available !== false,
           updated_at: new Date().toISOString()
