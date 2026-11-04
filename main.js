@@ -28,8 +28,10 @@ const state = {
   navHistory: ['hub']
 };
 
-function resolveStoreImg(src, fallback = 'images/hero_noon.jpg') {
-  if (!src) return fallback;
+function resolveStoreImg(src, fallback = '') {
+  if (!src || src === 'images/hero_noon.jpg') {
+    return state.platformSettings?.heroBg || 'images/store_elegance.jpg';
+  }
   const s = String(src).trim();
   if (s.startsWith('../')) return s.replace(/^(\.\.\/)+/, '');
   return s;
@@ -545,7 +547,7 @@ window.viewProduct = (id) => {
   const sizeGrid = document.getElementById('size-selector');
   if (sizeGrid && p.sizes) {
     sizeGrid.innerHTML = p.sizes.map((s, i) => `
-      <button class="py-2.5 border ${i === 0 ? 'bg-primary text-background' : 'border-primary/15 text-primary'} text-[10px] font-bold rounded-lg transition-all" onclick="selectSize(this)">${sanitizeHtml(s)}</button>
+      <button class="py-2 px-3.5 border ${i === 0 ? 'bg-primary text-background' : 'border-primary/15 text-primary'} text-[11px] font-bold rounded-xl transition-all shadow-sm hover:border-accent whitespace-nowrap" onclick="selectSize(this)">${sanitizeHtml(s)}</button>
     `).join('');
     state.currentSize = p.sizes[0];
   }
@@ -617,7 +619,7 @@ window.switchProductToOriginal = (btn) => {
   const sizeGrid = document.getElementById('size-selector');
   if (sizeGrid && p.sizes) {
     sizeGrid.innerHTML = p.sizes.map((s, i) => `
-      <button class="py-2.5 border ${i === 0 ? 'bg-primary text-background' : 'border-primary/15 text-primary'} text-[10px] font-bold rounded-lg transition-all" onclick="selectSize(this)">${sanitizeHtml(s)}</button>
+      <button class="py-2 px-3.5 border ${i === 0 ? 'bg-primary text-background' : 'border-primary/15 text-primary'} text-[11px] font-bold rounded-xl transition-all shadow-sm hover:border-accent whitespace-nowrap" onclick="selectSize(this)">${sanitizeHtml(s)}</button>
     `).join('');
     state.currentSize = p.sizes[0];
   }
@@ -675,7 +677,7 @@ window.switchProductColorVariant = (index, btn) => {
     const sizeGrid = document.getElementById('size-selector');
     if (sizeGrid) {
       sizeGrid.innerHTML = variant.sizes.map((s, i) => `
-        <button class="py-2.5 border ${i === 0 ? 'bg-primary text-background' : 'border-primary/15 text-primary'} text-[10px] font-bold rounded-lg transition-all" onclick="selectSize(this)">${sanitizeHtml(s)}</button>
+        <button class="py-2 px-3.5 border ${i === 0 ? 'bg-primary text-background' : 'border-primary/15 text-primary'} text-[11px] font-bold rounded-xl transition-all shadow-sm hover:border-accent whitespace-nowrap" onclick="selectSize(this)">${sanitizeHtml(s)}</button>
       `).join('');
       state.currentSize = variant.sizes[0];
     }
@@ -2166,35 +2168,52 @@ window.executeStoryAction = () => {
   }
 };
 
-// --- Boot Application & Luxury Motion Entrance ---
+// --- Boot Application & Luxury Motion Entrance (Zero-Wait Instant Hydration) ---
 const boot = async () => {
   const progressEl = document.getElementById('splash-progress');
   const percentEl = document.getElementById('splash-percent');
 
-  let loadProgress = 15;
   const setLoad = (val) => {
-    loadProgress = val;
     if (progressEl) progressEl.style.width = `${val}%`;
     if (percentEl) percentEl.innerText = `${val}%`;
   };
 
-  // Purge obsolete demo cache to start with a 100% clean slate
-  if (localStorage.getItem('noon_clean_slate_v1') !== 'true') {
-    localStorage.removeItem('noon_products');
-    localStorage.removeItem('noon_stories');
-    localStorage.removeItem('noon_platform_settings');
-    localStorage.removeItem('noon_reviews');
-    localStorage.removeItem('noon_orders');
-    localStorage.removeItem('noon_cart');
-    localStorage.setItem('noon_clean_slate_v1', 'true');
+  // 1. INSTANT LOCAL CACHE HYDRATION (0ms - Immediate First Paint)
+  // Ensures the user's custom hero image & settings show immediately without waiting for Supabase
+  try {
+    const cachedSettings = JSON.parse(localStorage.getItem('noon_platform_settings') || 'null');
+    const cachedStores = JSON.parse(localStorage.getItem('noon_stores') || 'null');
+    const cachedProducts = JSON.parse(localStorage.getItem('noon_products') || 'null');
+    const cachedGame = JSON.parse(localStorage.getItem('noon_game_config') || 'null');
+    const cachedStories = JSON.parse(localStorage.getItem('noon_stories') || 'null');
+
+    if (cachedSettings) state.platformSettings = cachedSettings;
+    if (Array.isArray(cachedStores) && cachedStores.length > 0) state.stores = cachedStores;
+    if (Array.isArray(cachedProducts) && cachedProducts.length > 0) state.products = cachedProducts;
+    if (cachedGame) state.gameConfig = cachedGame;
+    if (Array.isArray(cachedStories)) state.stories = cachedStories;
+  } catch (e) {
+    console.warn('[NOON] Cache parse notice:', e);
   }
 
-  setLoad(30);
+  // Pre-render immediately with cached data
+  renderHeroContent();
+  if (state.stores.length > 0) renderStoresHub();
 
-  // 1. Concurrent data load with safety timeout (prevents freeze/hang on slow networks)
+  setLoad(35);
+
+  // 2. SAFETY EMERGENCY WATCHDOG (Guarantees splash screen is dismissed within 1200ms max)
+  const emergencyDismiss = setTimeout(() => {
+    const splash = document.getElementById('splash-screen');
+    if (splash && !splash.classList.contains('splash-hidden')) {
+      splash.classList.add('splash-hidden');
+    }
+  }, 1200);
+
+  // 3. FAST CONCURRENT CLOUD SYNC (Strict 1500ms timeout - Never blocks or freezes at 30%)
   try {
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Network timeout')), 4000)
+      setTimeout(() => reject(new Error('Cloud sync timeout')), 1500)
     );
     const fetchAllPromise = Promise.all([
       db.getPlatformSettings(),
@@ -2204,33 +2223,33 @@ const boot = async () => {
       db.getStories()
     ]);
 
+    setLoad(65);
+
     const [settings, stores, products, gameCfg, stories] = await Promise.race([
       fetchAllPromise,
       timeoutPromise
     ]);
 
-    state.platformSettings = settings;
-    state.stores = stores;
-    state.products = products;
-    state.gameConfig = gameCfg;
+    if (settings) state.platformSettings = settings;
+    if (Array.isArray(stores) && stores.length > 0) state.stores = stores;
+    if (Array.isArray(products) && products.length > 0) state.products = products;
+    if (gameCfg) state.gameConfig = gameCfg;
     if (settings?.wheelPrizes && typeof settings.wheelPrizes === 'object' && !Array.isArray(settings.wheelPrizes)) {
       state.gameConfig = {
-        dailyAttemptsAllowed: Number(settings.wheelPrizes.dailyAttemptsAllowed) || gameCfg.dailyAttemptsAllowed || 1,
+        dailyAttemptsAllowed: Number(settings.wheelPrizes.dailyAttemptsAllowed) || gameCfg?.dailyAttemptsAllowed || 1,
         enabled: settings.wheelPrizes.enabled !== false,
-        prizes: Array.isArray(settings.wheelPrizes.prizes) && settings.wheelPrizes.prizes.length > 0 ? settings.wheelPrizes.prizes : gameCfg.prizes
+        prizes: Array.isArray(settings.wheelPrizes.prizes) && settings.wheelPrizes.prizes.length > 0 ? settings.wheelPrizes.prizes : gameCfg?.prizes
       };
     }
-    state.stories = stories;
+    if (Array.isArray(stories)) state.stories = stories;
+
   } catch (err) {
-    console.warn('[NOON] Parallel load timed out or errored, falling back gracefully:', err);
-    state.platformSettings = await db.getPlatformSettings();
-    state.stores = await db.getStores();
-    state.products = await db.getProducts();
-    state.gameConfig = await db.getGameConfig();
-    state.stories = await db.getStories();
+    // Graceful silent fallback: we already hydrated from cache, NEVER call slow sequential fetches!
+    console.log('[NOON] Using fast local cache (cloud sync non-blocking):', err.message);
   }
 
-  setLoad(85);
+  setLoad(100);
+  clearTimeout(emergencyDismiss);
 
   const navBrandText = document.getElementById('nav-brand-text');
   if (state.platformSettings?.logo) {
@@ -2246,7 +2265,6 @@ const boot = async () => {
     if (navBrandText) navBrandText.style.display = 'block';
   }
   renderHeroContent();
-  setLoad(100);
 
   // 2. Initial renders
   renderStoresHub();

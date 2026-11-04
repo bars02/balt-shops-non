@@ -5,7 +5,49 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="google" content="notranslate" />
   <title>منصة نون | NOON Multi-Store Platform</title>
-  <meta name="description" content="منصة نون — وجهتكِ الأولى لتسوق أرقى الأزياء والعبايات النسائية من متاجر مستقلة متعددة." />
+  <meta name="description" content="منصة نون — وجهتكِ الأولى لتسوق أرقى الأزياء والعبايات النسائية من متاجر مستقلة متعددة في العراق." />
+  <meta name="author" content="منصة نون للأزياء النسائية" />
+  <meta name="theme-color" content="#1B2E1D" />
+
+  <!-- Open Graph & Meta Standards for Instagram, Facebook & WhatsApp -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="منصة نون | NOON Fashion" />
+  <meta property="og:title" content="منصة نون للأزياء النسائية | NOON Platform" />
+  <meta property="og:description" content="تصفحي واقتني أرقى تصاميم الأزياء والعبايات وفساتين السهرة من أرقى دور الأزياء النسائية المستقلة." />
+  <meta property="og:image" content="images/logo.png" />
+  <meta property="og:locale" content="ar_AR" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="منصة نون | NOON Fashion Platform" />
+  <meta name="twitter:description" content="أرقى دور الأزياء النسائية المستقلة في العراق." />
+
+  <!-- Instant Cache Hydration: Pre-loads custom Hero Image in 0ms (Prevents old placeholder flicker) -->
+  <script>
+    (function() {
+      try {
+        var raw = localStorage.getItem('noon_platform_settings');
+        if (raw) {
+          var s = JSON.parse(raw);
+          if (s && s.heroBg) {
+            window.__noonHeroBg = s.heroBg.replace(/^(\.\.\/)+/, '');
+          }
+        }
+      } catch(e) {}
+    })();
+  </script>
+
+  <!-- Structured Data: Verified Fashion Store Entity for Search & Social Crawlers -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "ClothingStore",
+    "name": "منصة نون للأزياء النسائية",
+    "alternateName": "NOON Multi-Store Fashion Platform",
+    "description": "منصة تسوق متخصصة في أرقى الأزياء النسائية والعبايات ودور التصميم المستقلة في العراق",
+    "currenciesAccepted": "IQD",
+    "paymentAccepted": "Cash on Delivery",
+    "priceRange": "$$"
+  }
+  </script>
   <script>
     window.onerror = function(msg, url, lineNo, columnNo, error) {
       console.log('NOON ERROR:', msg, 'at', lineNo, ':', columnNo);
@@ -148,8 +190,14 @@
       
       <!-- Platform Hero -->
       <div class="relative h-[65svh] w-full overflow-hidden cursor-pointer group" onclick="scrollToStores()">
-        <div class="absolute inset-0 parallax-wrap">
-          <img id="hero-bg-img" src="images/hero_noon.jpg" class="absolute inset-0 w-full h-full object-cover parallax-img animate-slow-zoom" alt="NOON Platform">
+        <div class="absolute inset-0 parallax-wrap bg-primary">
+          <img id="hero-bg-img" src="" class="absolute inset-0 w-full h-full object-cover parallax-img animate-slow-zoom transition-opacity duration-700" alt="NOON Platform" style="opacity: 0;" onload="this.style.opacity='1'" onerror="this.style.opacity='1'">
+          <script>
+            if (window.__noonHeroBg) {
+              var heroEl = document.getElementById('hero-bg-img');
+              if (heroEl) { heroEl.src = window.__noonHeroBg; }
+            }
+          </script>
         </div>
         <div class="absolute inset-0 bg-gradient-to-b from-black/30 via-primary/30 to-background"></div>
         <div class="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
@@ -215,6 +263,18 @@
             <span class="material-symbols-outlined text-2xl mb-1">casino</span>
             <p class="text-[9px] uppercase tracking-wider text-background/90 font-bold">جوائز يومية</p>
           </div>
+        </div>
+
+        <!-- Official Compliance & Legal Links for Instagram & Meta Verification -->
+        <div class="mt-8 pt-6 border-t border-white/10 text-center space-y-2">
+          <div class="flex items-center justify-center gap-3 text-[10px] text-background/70 font-medium">
+            <a href="privacy.html" class="hover:text-accent transition-colors underline underline-offset-4">سياسة الخصوصية</a>
+            <span>•</span>
+            <a href="terms.html" class="hover:text-accent transition-colors underline underline-offset-4">شروط الخدمة والترخيص</a>
+            <span>•</span>
+            <a href="privacy.html#contact" class="hover:text-accent transition-colors underline underline-offset-4">معلومات الاتصال والدعم</a>
+          </div>
+          <p class="text-[9px] text-background/40">منصة نون الرسمية للأزياء والعبايات العراقية المستقلة — موثقة ومحمية بموجب حقوق النشر والملكية الفكرية © 2026</p>
         </div>
       </div>
 
@@ -330,7 +390,7 @@
             <span class="text-[10px] uppercase tracking-widest font-semibold" data-i18n="select_size">اختر المقاس</span>
             <span class="text-[10px] uppercase tracking-wider underline decoration-primary/30 cursor-pointer" data-i18n="size_guide">دليل المقاسات</span>
           </div>
-          <div class="grid grid-cols-5 gap-2" id="size-selector"></div>
+          <div class="flex flex-wrap gap-2.5 items-center" id="size-selector"></div>
         </div>
 
         <!-- Quantity -->
@@ -744,6 +804,20 @@
           <span class="material-symbols-outlined text-accent">translate</span>
           <span class="text-sm font-medium lang-toggle-text">English</span>
         </button>
+        <a href="privacy.html" class="w-full flex items-center justify-between p-3 rounded-xl hover:bg-primary/5 transition-colors text-right border border-primary/5 text-primary/80">
+          <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined text-accent text-lg">policy</span>
+            <span class="text-xs font-medium">سياسة الخصوصية والأمان</span>
+          </div>
+          <span class="material-symbols-outlined text-xs text-primary/40">arrow_forward_ios</span>
+        </a>
+        <a href="terms.html" class="w-full flex items-center justify-between p-3 rounded-xl hover:bg-primary/5 transition-colors text-right border border-primary/5 text-primary/80">
+          <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined text-accent text-lg">gavel</span>
+            <span class="text-xs font-medium">شروط الخدمة وترخيص المنصة</span>
+          </div>
+          <span class="material-symbols-outlined text-xs text-primary/40">arrow_forward_ios</span>
+        </a>
       </div>
       <div class="mt-6 text-center">
         <p class="text-[10px] uppercase tracking-widest font-semibold opacity-30">NOON Platform | متجر نون متعدد المتاجر</p>

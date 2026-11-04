@@ -1135,7 +1135,7 @@ window.applyColorWheelSelection = () => {
 window.addQuickSize = (size) => {
     const input = document.getElementById('product-sizes');
     if (!input) return;
-    const current = input.value.split(',').map(s => s.trim()).filter(Boolean);
+    const current = input.value.split(/[,،]/).map(s => s.trim()).filter(Boolean);
     if (!current.includes(size)) {
         current.push(size);
         input.value = current.join(', ');
@@ -1146,7 +1146,7 @@ window.addVariantQuickSize = (index, size) => {
     if (!productVariants[index]) return;
     const current = Array.isArray(productVariants[index].sizes)
         ? [...productVariants[index].sizes]
-        : String(productVariants[index].sizes || '').split(',').map(s => s.trim()).filter(Boolean);
+        : String(productVariants[index].sizes || '').split(/[,،]/).map(s => s.trim()).filter(Boolean);
     if (!current.includes(size)) {
         current.push(size);
         productVariants[index].sizes = current;
@@ -1173,7 +1173,7 @@ window.renderProductVariantsUI = () => {
         return;
     }
 
-    const quickSizesList = ['S', 'M', 'L', 'XL', 'XXL', 'Free Size', '36', '38', '40', '42', '44'];
+    const quickSizesList = ['44-46', '46-48', 'Large', 'X-Large', 'XX-Large', 'Medium', 'Small', 'Free Size', 'قياس موحد', '38', '40', '42', '44'];
 
     container.innerHTML = productVariants.map((v, i) => {
         const previewSrc = v.image ? resolveDashboardImg(v.image) : '../images/hero_noon.jpg';
@@ -1544,7 +1544,7 @@ window.saveProduct = async (e) => {
     const category = document.getElementById('product-category-select').value;
     const price = parseInt(document.getElementById('product-price').value) || 0;
     const image = document.getElementById('product-image-url').value.trim() || 'images/hero_noon.jpg';
-    const sizes = document.getElementById('product-sizes').value.split(',').map(s => s.trim()).filter(Boolean);
+    const sizes = document.getElementById('product-sizes').value.split(/[,،]/).map(s => s.trim()).filter(Boolean);
     const desc = document.getElementById('product-desc-ar').value.trim();
 
     const primaryColorHex = document.getElementById('product-primary-color-hex')?.value || '#1B2E1D';

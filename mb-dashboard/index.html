@@ -752,17 +752,18 @@
             <!-- Sizes & Presets -->
             <div>
                 <label class="font-bold block mb-1">المقاسات المتوفرة (مفصولة بفواصل)</label>
-                <input type="text" id="product-sizes" class="input-field" placeholder="38, 40, 42, 44 أو S, M, L">
+                <input type="text" id="product-sizes" class="input-field" placeholder="مثال: 44-46, Large, X-Large أو 38, 40, 42">
                 <!-- Quick Preset Chips -->
                 <div class="flex flex-wrap items-center gap-1.5 mt-2">
                     <span class="text-[10px] text-primary/50 font-bold ml-1">إضافة سريعة:</span>
-                    <button type="button" onclick="addQuickSize('S')" class="px-2 py-0.5 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 text-[10px] font-bold">S</button>
-                    <button type="button" onclick="addQuickSize('M')" class="px-2 py-0.5 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 text-[10px] font-bold">M</button>
-                    <button type="button" onclick="addQuickSize('L')" class="px-2 py-0.5 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 text-[10px] font-bold">L</button>
-                    <button type="button" onclick="addQuickSize('XL')" class="px-2 py-0.5 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 text-[10px] font-bold">XL</button>
-                    <button type="button" onclick="addQuickSize('XXL')" class="px-2 py-0.5 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 text-[10px] font-bold">XXL</button>
+                    <button type="button" onclick="addQuickSize('44-46')" class="px-2 py-0.5 rounded-md bg-accent/20 hover:bg-accent/30 border border-accent/40 text-[10px] font-bold text-primary">44-46</button>
+                    <button type="button" onclick="addQuickSize('46-48')" class="px-2 py-0.5 rounded-md bg-accent/20 hover:bg-accent/30 border border-accent/40 text-[10px] font-bold text-primary">46-48</button>
+                    <button type="button" onclick="addQuickSize('Large')" class="px-2 py-0.5 rounded-md bg-accent/20 hover:bg-accent/30 border border-accent/40 text-[10px] font-bold text-primary">Large</button>
+                    <button type="button" onclick="addQuickSize('X-Large')" class="px-2 py-0.5 rounded-md bg-accent/20 hover:bg-accent/30 border border-accent/40 text-[10px] font-bold text-primary">X-Large</button>
+                    <button type="button" onclick="addQuickSize('XX-Large')" class="px-2 py-0.5 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 text-[10px] font-bold">XX-Large</button>
+                    <button type="button" onclick="addQuickSize('Medium')" class="px-2 py-0.5 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 text-[10px] font-bold">Medium</button>
+                    <button type="button" onclick="addQuickSize('Small')" class="px-2 py-0.5 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 text-[10px] font-bold">Small</button>
                     <button type="button" onclick="addQuickSize('Free Size')" class="px-2 py-0.5 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 text-[10px] font-bold">قياس موحد (Free)</button>
-                    <button type="button" onclick="addQuickSize('36')" class="px-2 py-0.5 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 text-[10px] font-bold">36</button>
                     <button type="button" onclick="addQuickSize('38')" class="px-2 py-0.5 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 text-[10px] font-bold">38</button>
                     <button type="button" onclick="addQuickSize('40')" class="px-2 py-0.5 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 text-[10px] font-bold">40</button>
                     <button type="button" onclick="addQuickSize('42')" class="px-2 py-0.5 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 text-[10px] font-bold">42</button>
