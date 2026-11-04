@@ -33,12 +33,46 @@ export function sanitizeData(data) {
   return data;
 }
 
-// Safe LocalStorage Helper (Prevents QuotaExceededError from blocking Cloud Sync)
+// Safe LocalStorage Helper (Prevents QuotaExceededError and gracefully compresses cache)
 function safeLocalSet(key, val) {
   try {
     localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val));
   } catch (e) {
-    console.warn(`[NOON DB] LocalStorage quota warning for ${key}:`, e.message);
+    console.warn(`[NOON DB] LocalStorage quota reached for ${key}, optimizing storage:`, e.message);
+    try {
+      // Clear non-essential old items to free up space
+      localStorage.removeItem('noon_clean_slate_v1');
+      localStorage.removeItem('noon_spin_history');
+      
+      // If products with heavy base64 caused the quota error, store lightweight metadata
+      if (key === 'noon_products' && Array.isArray(val)) {
+        const lightweight = val.map(p => ({
+          id: p.id,
+          storeId: p.storeId,
+          category: p.category,
+          nameAr: p.nameAr,
+          nameEn: p.nameEn,
+          price: p.price,
+          currencyAr: p.currencyAr,
+          currencyEn: p.currencyEn,
+          image: (typeof p.image === 'string' && p.image.length > 250000) ? 'images/store_elegance.jpg' : p.image,
+          sizes: p.sizes,
+          colors: (p.colors || []).map(c => ({
+            id: c.id,
+            hex: c.hex,
+            colorNameAr: c.colorNameAr,
+            colorNameEn: c.colorNameEn,
+            sizes: c.sizes,
+            price: c.price
+          })),
+          available: p.available
+        }));
+        localStorage.setItem(key, JSON.stringify(lightweight));
+        return;
+      }
+    } catch (_) {
+      console.warn('[NOON DB] Storage optimization fallback notice');
+    }
   }
 }
 

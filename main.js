@@ -2210,42 +2210,63 @@ const boot = async () => {
     }
   }, 1200);
 
-  // 3. FAST CONCURRENT CLOUD SYNC (Strict 1500ms timeout - Never blocks or freezes at 30%)
-  try {
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Cloud sync timeout')), 1500)
-    );
-    const fetchAllPromise = Promise.all([
-      db.getPlatformSettings(),
-      db.getStores(),
-      db.getProducts(),
-      db.getGameConfig(),
-      db.getStories()
-    ]);
-
-    setLoad(65);
-
-    const [settings, stores, products, gameCfg, stories] = await Promise.race([
-      fetchAllPromise,
-      timeoutPromise
-    ]);
-
+  // 3. FAST CONCURRENT CLOUD SYNC (Never drops products & updates screen live)
+  const applyFetchedData = ([settings, stores, products, gameCfg, stories]) => {
     if (settings) state.platformSettings = settings;
     if (Array.isArray(stores) && stores.length > 0) state.stores = stores;
-    if (Array.isArray(products) && products.length > 0) state.products = products;
+    if (Array.isArray(products) && products.length > 0) {
+      state.products = products;
+      // Re-render current boutique products live so they never stay empty!
+      const activeStore = state.stores.find(s => s.id === state.activeStoreId) || state.stores[0];
+      if (activeStore) {
+        renderStoreProducts(activeStore);
+      }
+    }
     if (gameCfg) state.gameConfig = gameCfg;
     if (settings?.wheelPrizes && typeof settings.wheelPrizes === 'object' && !Array.isArray(settings.wheelPrizes)) {
       state.gameConfig = {
         dailyAttemptsAllowed: Number(settings.wheelPrizes.dailyAttemptsAllowed) || gameCfg?.dailyAttemptsAllowed || 1,
         enabled: settings.wheelPrizes.enabled !== false,
-        prizes: Array.isArray(settings.wheelPrizes.prizes) && settings.wheelPrizes.prizes.length > 0 ? settings.wheelPrizes.prizes : gameCfg?.prizes
+        prizes: Array.isArray(settings.wheelPrizes.prizes) && settings.wheelPrizes.prizes.length > 0 ? settings.wheelPrizes.prizes : (gameCfg?.prizes || [])
       };
     }
     if (Array.isArray(stories)) state.stories = stories;
 
+    renderHeroContent();
+    renderStoresHub();
+    renderStoreSwitcher();
+    updateCartUI();
+    updateGameUI();
+  };
+
+  const fetchAllPromise = Promise.all([
+    db.getPlatformSettings(),
+    db.getStores(),
+    db.getProducts(),
+    db.getGameConfig(),
+    db.getStories()
+  ]);
+
+  // Always listen to fetchAllPromise so when Supabase returns, products appear immediately
+  fetchAllPromise
+    .then(applyFetchedData)
+    .catch(err => console.warn('[NOON] Background cloud sync warning:', err));
+
+  try {
+    const splashTimeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Splash display timeout')), 2500)
+    );
+
+    setLoad(65);
+
+    const results = await Promise.race([
+      fetchAllPromise,
+      splashTimeoutPromise
+    ]);
+
+    applyFetchedData(results);
   } catch (err) {
-    // Graceful silent fallback: we already hydrated from cache, NEVER call slow sequential fetches!
-    console.log('[NOON] Using fast local cache (cloud sync non-blocking):', err.message);
+    console.log('[NOON] Dismissing splash while cloud sync continues in background:', err.message);
   }
 
   setLoad(100);
