@@ -4,7 +4,7 @@
 // ==============================================================================
 
 import { i18n } from './i18n.js';
-import { db, sanitizeHtml } from './db.js';
+import { db, sanitizeHtml, idbGet } from './db.js';
 
 // --- Application State ---
 const state = {
@@ -385,15 +385,30 @@ window.filterStoreCategory = (catId) => {
 
 function renderStoreProducts(store) {
   const grid = document.getElementById('atelier-grid');
-  if (!grid) return;
+  if (!grid || !store) return;
   const lang = i18n.currentLang;
 
-  let storeProducts = state.products.filter(p => p.storeId === store.id);
-  if (state.activeCategory !== 'all') {
-    storeProducts = storeProducts.filter(p => p.category === state.activeCategory);
+  let storeProducts = state.products.filter(p => (p.storeId || p.store_id) === store.id);
+  
+  if (state.activeCategory && state.activeCategory !== 'all') {
+    const activeCatNorm = String(state.activeCategory).trim().toLowerCase();
+    storeProducts = storeProducts.filter(p => {
+      const pCatNorm = String(p.category || '').trim().toLowerCase();
+      return pCatNorm === activeCatNorm;
+    });
   }
 
   if (storeProducts.length === 0) {
+    if (state.products.length === 0) {
+      grid.innerHTML = `
+        <div class="col-span-2 py-16 text-center animate-pulse">
+          <span class="material-symbols-outlined text-4xl text-accent/60 mb-3 block animate-spin">progress_activity</span>
+          <h4 class="font-serif text-sm text-primary mb-1">${lang === 'en' ? 'Fetching luxury creations...' : 'جاري تحميل أحدث القطع الفاخرة...'}</h4>
+          <p class="text-[11px] text-primary/50">${lang === 'en' ? 'Connecting to cloud boutique' : 'جاري الاتصال السريع بالسحابة'}</p>
+        </div>
+      `;
+      return;
+    }
     grid.innerHTML = `
       <div class="col-span-2 py-20 text-center">
         <span class="material-symbols-outlined text-4xl text-accent/50 mb-2 block">inventory_2</span>
@@ -2194,6 +2209,17 @@ const boot = async () => {
     if (Array.isArray(cachedStories)) state.stories = cachedStories;
   } catch (e) {
     console.warn('[NOON] Cache parse notice:', e);
+  }
+
+  // Check IndexedDB if localStorage products were missing/quota-purged
+  if (!Array.isArray(state.products) || state.products.length === 0) {
+    idbGet('noon_products').then(idbProds => {
+      if (Array.isArray(idbProds) && idbProds.length > 0 && state.products.length === 0) {
+        state.products = idbProds;
+        const activeStore = state.stores.find(s => s.id === state.activeStoreId) || state.stores[0];
+        if (activeStore) renderStoreProducts(activeStore);
+      }
+    }).catch(() => {});
   }
 
   // Pre-render immediately with cached data

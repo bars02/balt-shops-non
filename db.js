@@ -76,6 +76,52 @@ function safeLocalSet(key, val) {
   }
 }
 
+// Lightweight IndexedDB helper for resilient, quota-free offline cache (Supports 100MB+)
+const IDB_NAME = 'NOON_OFFLINE_DB';
+const IDB_STORE = 'noon_cache';
+function openIDB() {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') return reject(new Error('IndexedDB not supported'));
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        db.createObjectStore(IDB_STORE);
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function idbSet(key, val) {
+  try {
+    const db = await openIDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put(val, key);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    });
+  } catch (_) {
+    return false;
+  }
+}
+
+export async function idbGet(key) {
+  try {
+    const db = await openIDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).get(key);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    });
+  } catch (_) {
+    return null;
+  }
+}
+
 function getDynamicStoreNameMap() {
   const map = {
     elegance: 'بيلوز',
@@ -290,6 +336,7 @@ export const db = {
           });
           if (!storeId) {
             safeLocalSet('noon_products', prods);
+            idbSet('noon_products', prods);
           }
           return prods;
         }
@@ -301,12 +348,19 @@ export const db = {
     if (local) {
       try {
         let prods = JSON.parse(local);
-        if (storeId) prods = prods.filter(p => p.storeId === storeId);
-        return prods;
+        if (storeId) prods = prods.filter(p => (p.storeId || p.store_id) === storeId);
+        if (prods && prods.length > 0) return prods;
       } catch(e) {}
     }
+    try {
+      const idbProds = await idbGet('noon_products');
+      if (Array.isArray(idbProds) && idbProds.length > 0) {
+        if (storeId) return idbProds.filter(p => (p.storeId || p.store_id) === storeId);
+        return idbProds;
+      }
+    } catch (_) {}
     let fallback = initialProducts;
-    if (storeId) fallback = fallback.filter(p => p.storeId === storeId);
+    if (storeId) fallback = fallback.filter(p => (p.storeId || p.store_id) === storeId);
     return fallback;
   },
 
@@ -328,6 +382,7 @@ export const db = {
       local.unshift(prodObj);
     }
     safeLocalSet('noon_products', local);
+    idbSet('noon_products', local);
 
     if (this.isCloudReady()) {
       try {
@@ -343,6 +398,12 @@ export const db = {
           }
         }
 
+        // Avoid duplicating image inside images if images only contains [prodObj.image]
+        let cloudImages = Array.isArray(prodObj.images) ? [...prodObj.images] : [];
+        if (cloudImages.length === 1 && cloudImages[0] === prodObj.image) {
+          cloudImages = [];
+        }
+
         const { error } = await supabaseClient.from('products').upsert({
           id: prodObj.id,
           store_id: prodObj.storeId,
@@ -353,7 +414,7 @@ export const db = {
           currency_ar: prodObj.currencyAr || 'د.ع ',
           currency_en: prodObj.currencyEn || 'IQD ',
           image: prodObj.image || '',
-          images: prodObj.images || [],
+          images: cloudImages,
           description_ar: prodObj.descriptionAr || '',
           description_en: prodObj.descriptionEn || '',
           heritage_ar: prodObj.heritageAr || '',
@@ -375,6 +436,7 @@ export const db = {
     const numId = Number(id);
     const local = (await this.getProducts()).filter(p => Number(p.id) !== numId);
     safeLocalSet('noon_products', local);
+    idbSet('noon_products', local);
 
     if (this.isCloudReady()) {
       try {
@@ -450,10 +512,13 @@ export const db = {
 
   async addReview(review) {
     const storeNames = getDynamicStoreNameMap();
+    const cleanProductId = (review.productId && !isNaN(Number(review.productId)) && Number(review.productId) > 0)
+      ? Number(review.productId)
+      : null;
     const cleanReview = {
       id: Date.now(),
       storeId: review.storeId || 'elegance',
-      productId: review.productId || null,
+      productId: cleanProductId,
       storeName: review.storeName || storeNames[review.storeId] || 'منصة نون',
       authorName: sanitizeHtml(review.authorName || 'عميلة نون'),
       content: sanitizeHtml(review.content || ''),
@@ -471,7 +536,7 @@ export const db = {
     // Save Cloud
     if (this.isCloudReady()) {
       try {
-        await supabaseClient.from('reviews').insert({
+        const { error } = await supabaseClient.from('reviews').insert({
           store_id: cleanReview.storeId,
           product_id: cleanReview.productId,
           author_name: cleanReview.authorName,
@@ -479,6 +544,17 @@ export const db = {
           rating: 5,
           is_approved: true
         });
+        if (error && error.code === '23503') {
+          // Foreign key violation fallback
+          await supabaseClient.from('reviews').insert({
+            store_id: cleanReview.storeId,
+            product_id: null,
+            author_name: cleanReview.authorName,
+            content: cleanReview.content,
+            rating: 5,
+            is_approved: true
+          });
+        }
       } catch (e) {
         console.error('[NOON DB] Cloud review insert error:', e);
       }
@@ -517,6 +593,46 @@ export const db = {
   },
 
   // --- ORDERS ---
+  async getOrders(storeId = null) {
+    if (this.isCloudReady()) {
+      try {
+        let q = supabaseClient.from('orders').select('*').order('created_at', { ascending: false });
+        if (storeId) q = q.eq('store_id', storeId);
+        const { data, error } = await q;
+        if (!error && Array.isArray(data)) {
+          const mapped = data.map(o => ({
+            id: o.id,
+            orderCode: o.order_code,
+            storeId: o.store_id,
+            customerName: o.customer_name,
+            customerPhone: o.customer_phone,
+            deliveryCity: o.delivery_city,
+            deliveryAddress: o.delivery_address,
+            items: Array.isArray(o.items) ? o.items : [],
+            subtotal: Number(o.subtotal) || 0,
+            shippingCost: Number(o.shipping_cost) || 0,
+            total: Number(o.total) || 0,
+            status: o.status || 'pending',
+            date: o.created_at
+          }));
+          safeLocalSet('noon_orders', mapped);
+          return mapped;
+        }
+      } catch (e) {
+        console.warn('[NOON DB] Falling back to local orders:', e);
+      }
+    }
+    const local = localStorage.getItem('noon_orders');
+    if (local) {
+      try {
+        let orders = JSON.parse(local);
+        if (storeId) orders = orders.filter(o => o.storeId === storeId);
+        return orders;
+      } catch (e) {}
+    }
+    return [];
+  },
+
   async createOrder(order) {
     const cleanOrder = {
       orderCode: 'NOON-' + Math.floor(100000 + Math.random() * 900000),
@@ -557,6 +673,37 @@ export const db = {
       }
     }
     return cleanOrder;
+  },
+
+  async updateOrderStatus(orderId, status) {
+    if (this.isCloudReady()) {
+      try {
+        await supabaseClient.from('orders').update({ status }).eq('id', orderId);
+      } catch (e) {
+        console.error('[NOON DB] Cloud update order status error:', e);
+      }
+    }
+    let orders = JSON.parse(localStorage.getItem('noon_orders') || '[]');
+    const target = orders.find(o => String(o.id) === String(orderId) || o.orderCode === orderId);
+    if (target) {
+      target.status = status;
+      safeLocalSet('noon_orders', orders);
+    }
+    return orders;
+  },
+
+  async deleteOrder(orderId) {
+    if (this.isCloudReady()) {
+      try {
+        await supabaseClient.from('orders').delete().eq('id', orderId);
+      } catch (e) {
+        console.error('[NOON DB] Cloud delete order error:', e);
+      }
+    }
+    let orders = JSON.parse(localStorage.getItem('noon_orders') || '[]');
+    orders = orders.filter(o => String(o.id) !== String(orderId) && o.orderCode !== orderId);
+    safeLocalSet('noon_orders', orders);
+    return orders;
   },
 
   // --- GAME CONFIG & SPINS (عجلة الحظ اليومية وإعدادات التفعيل/الإيقاف) ---
@@ -702,15 +849,20 @@ export const db = {
   },
 
   // --- STORIES & BROADCASTS (قصص واستوريات المنصة) ---
-  async getStories() {
+  async getStories(includeInactive = false) {
     const storeNames = getDynamicStoreNameMap();
     if (this.isCloudReady()) {
       try {
-        const { data, error } = await supabaseClient
+        let q = supabaseClient
           .from('stories')
           .select('*')
-          .eq('is_active', true)
           .order('id', { ascending: false });
+
+        if (!includeInactive) {
+          q = q.eq('is_active', true);
+        }
+
+        const { data, error } = await q;
 
         if (!error && Array.isArray(data)) {
           const mapped = data.map(s => ({
@@ -730,7 +882,9 @@ export const db = {
             time: 'مؤخراً',
             active: s.is_active !== false
           }));
-          safeLocalSet('noon_stories', mapped);
+          if (!includeInactive) {
+            safeLocalSet('noon_stories', mapped);
+          }
           return mapped;
         }
       } catch (e) {
@@ -739,7 +893,10 @@ export const db = {
     }
     const local = localStorage.getItem('noon_stories');
     if (local !== null) {
-      try { return JSON.parse(local); } catch (e) {}
+      try {
+        const parsed = JSON.parse(local);
+        return includeInactive ? parsed : parsed.filter(s => s.active !== false);
+      } catch (e) {}
     }
     return [];
   },

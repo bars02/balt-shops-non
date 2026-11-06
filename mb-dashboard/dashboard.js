@@ -10,6 +10,8 @@ import { ADMIN_EMAIL } from '../config.js';
 let stores = [];
 let products = [];
 let stories = [];
+let orders = [];
+let platformSettings = {};
 let gameConfig = { dailyAttemptsAllowed: 1, prizes: [] };
 let currentSection = 'stores';
 let editingStoreId = null;
@@ -360,6 +362,7 @@ window.showSection = (sec) => {
     if (sec === 'hero') renderHeroSection();
     if (sec === 'categories') renderCategoriesSection();
     if (sec === 'products') renderProductsSection();
+    if (sec === 'orders') renderOrdersSection();
     if (sec === 'game') renderGameSection();
     if (sec === 'comments') renderCommentsSection();
     if (sec === 'stories') renderStoriesSection();
@@ -1925,7 +1928,7 @@ async function renderStoriesSection() {
 
     if (!grid) return;
 
-    stories = await db.getStories();
+    stories = await db.getStories(true);
 
     if (!stories || stories.length === 0) {
         grid.innerHTML = `
@@ -1944,6 +1947,7 @@ async function renderStoriesSection() {
         const image = sanitizeHtml(s.image || '../images/hero_noon.jpg');
         const time = sanitizeHtml(s.time || 'الآن');
         const ctaAr = sanitizeHtml(s.ctaAr || 'عرض التفاصيل');
+        const isActive = s.active !== false;
 
         return `
             <div class="card overflow-hidden flex flex-col justify-between border border-primary/10 shadow-sm hover:shadow-md transition-shadow">
@@ -1967,14 +1971,36 @@ async function renderStoriesSection() {
                             <span class="material-symbols-outlined text-xs text-accent">touch_app</span>
                             <span>الزر: <strong>${ctaAr}</strong></span>
                         </span>
-                        <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">نشط في الواجهة</span>
+                        ${isActive 
+                            ? '<span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">نشط في الواجهة</span>' 
+                            : '<span class="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-800 font-bold">متوقف (مخفي)</span>'}
                     </div>
                 </div>
                 <div class="p-3 bg-[#fafaf5] border-t border-black/5 flex justify-between gap-2">
                     <button class="btn-gold flex-1 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1" onclick="editStory(${Number(s.id)})">
                         <span class="material-symbols-outlined text-xs">edit</span>
-                        <span>تعديل الستوري</span>
+                        <span>تعديل</span>
                     </button>
+                    <button class="px-2.5 py-1.5 rounded-lg border text-xs font-bold ${isActive ? 'border-amber-200 text-amber-700 hover:bg-amber-50' : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'}" onclick="toggleStoryActive(${Number(s.id)})" title="${isActive ? 'إيقاف مؤقت' : 'تفعيل'}">
+                        <span class="material-symbols-outlined text-xs">${isActive ? 'visibility_off' : 'visibility'}</span>
+                    </button>
+                    <button class="text-xs text-red-600 hover:text-red-800 font-bold px-2.5 py-1.5 rounded-lg border border-red-200 hover:bg-red-50 flex items-center gap-1" onclick="deleteStory(${Number(s.id)})" title="حذف">
+                        <span class="material-symbols-outlined text-xs">delete</span>
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+window.toggleStoryActive = async (id) => {
+    const s = stories.find(x => Number(x.id) === Number(id));
+    if (!s) return;
+    s.active = s.active === false;
+    await db.saveStory(s);
+    await renderStoriesSection();
+    showToast(s.active ? "تم تفعيل الستوري وإظهاره في الواجهة" : "تم إيقاف الستوري وإخفاؤه مؤقتاً");
+};
                     <button class="text-xs text-red-600 hover:text-red-800 font-bold px-3 py-1.5 rounded-lg border border-red-200 hover:bg-red-50 flex items-center gap-1" onclick="deleteStory(${Number(s.id)})">
                         <span class="material-symbols-outlined text-xs">delete</span>
                         <span>حذف</span>
@@ -2220,27 +2246,283 @@ window.autoTranslateProduct = async () => {
     showToast("تمت ترجمة اسم المنتج بنجاح!");
 };
 
+// ============================================================
+// 3.5 ORDERS MANAGEMENT (إدارة الطلبات الواردة)
+// ============================================================
+window.renderOrdersSection = async () => {
+    const grid = document.getElementById('orders-admin-grid');
+    const storeFilter = document.getElementById('order-store-filter');
+    const statusFilter = document.getElementById('order-status-filter');
+    if (!grid) return;
+
+    // Populate store filter options dynamically
+    if (storeFilter && storeFilter.options.length <= 1) {
+        storeFilter.innerHTML = '<option value="all">كل المتاجر</option>' +
+            stores.map(s => `<option value="${sanitizeHtml(s.id)}">${sanitizeHtml(s.nameAr)}</option>`).join('');
+    }
+
+    const selStore = storeFilter ? storeFilter.value : 'all';
+    const selStatus = statusFilter ? statusFilter.value : 'all';
+
+    orders = await db.getOrders();
+
+    let filtered = Array.isArray(orders) ? orders : [];
+    if (selStore !== 'all') {
+        filtered = filtered.filter(o => o.storeId === selStore);
+    }
+    if (selStatus !== 'all') {
+        filtered = filtered.filter(o => o.status === selStatus);
+    }
+
+    if (!filtered || filtered.length === 0) {
+        grid.innerHTML = `
+            <div class="card p-12 text-center text-primary/50 text-xs">
+                <span class="material-symbols-outlined text-4xl block mb-2 opacity-40">shopping_bag</span>
+                <p>لا توجد طلبات واردة مطابقة لهذا الفلتر حالياً.</p>
+            </div>
+        `;
+        return;
+    }
+
+    const statusBadgeMap = {
+        pending: { label: 'قيد الانتظار', cls: 'bg-amber-100 text-amber-800' },
+        confirmed: { label: 'تم التأكيد', cls: 'bg-blue-100 text-blue-800' },
+        shipped: { label: 'جاري التوصيل', cls: 'bg-purple-100 text-purple-800' },
+        delivered: { label: 'تم التسليم', cls: 'bg-emerald-100 text-emerald-800' },
+        cancelled: { label: 'ملغي', cls: 'bg-red-100 text-red-800' }
+    };
+
+    grid.innerHTML = filtered.map(o => {
+        const storeObj = stores.find(s => s.id === o.storeId);
+        const storeName = storeObj ? storeObj.nameAr : (o.storeId || 'منصة نون');
+        const st = statusBadgeMap[o.status] || statusBadgeMap.pending;
+        const phone = o.customerPhone ? String(o.customerPhone).replace(/[^0-9]/g, '') : '';
+        const waLink = phone ? `https://wa.me/${phone.startsWith('0') ? '964' + phone.substring(1) : phone}` : '#';
+        const formattedDate = o.date ? new Date(o.date).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) : 'مؤخراً';
+
+        const itemsHtml = (o.items || []).map(it => `
+            <div class="flex items-center gap-3 p-2 bg-black/[0.02] rounded-xl border border-black/5 text-xs">
+                ${it.image ? `<img src="${resolveDashboardImg(it.image)}" class="w-10 h-10 object-cover rounded-lg">` : ''}
+                <div class="flex-1">
+                    <p class="font-bold text-primary">${sanitizeHtml(it.nameAr || it.nameEn || 'قطعة نون')}</p>
+                    <p class="text-[11px] text-primary/60">
+                        ${it.selectedSize ? `القياس: ${it.selectedSize} | ` : ''}
+                        ${it.selectedColor ? `اللون: ${it.selectedColor} | ` : ''}
+                        الكمية: ${it.quantity || 1}
+                    </p>
+                </div>
+                <div class="font-bold text-accent font-sans">
+                    ${Number(it.price || 0).toLocaleString()} د.ع
+                </div>
+            </div>
+        `).join('');
+
+        return `
+            <div class="card p-5 border border-primary/10 shadow-sm hover:shadow transition-shadow space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 pb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="font-mono font-bold text-xs bg-primary/10 text-primary px-2.5 py-1 rounded-lg">${sanitizeHtml(o.orderCode)}</span>
+                        <span class="badge ${st.cls}">${st.label}</span>
+                        <span class="text-[11px] text-primary/50">${formattedDate}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold text-accent px-2.5 py-0.5 rounded-full bg-accent/10 border border-accent/20">${storeName}</span>
+                        <button class="text-red-500 hover:text-red-700 text-xs p-1" onclick="deleteOrderHandler('${o.id || o.orderCode}')" title="حذف الطلب">
+                            <span class="material-symbols-outlined text-base">delete</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="space-y-1.5 text-xs">
+                        <p class="text-primary/60 font-medium">العميلة:</p>
+                        <p class="font-bold text-sm text-primary flex items-center gap-2">
+                            <span class="material-symbols-outlined text-sm text-accent">person</span>
+                            <span>${sanitizeHtml(o.customerName)}</span>
+                        </p>
+                        ${o.customerPhone ? `
+                            <p class="flex items-center gap-2 mt-1">
+                                <span class="material-symbols-outlined text-sm text-emerald-600">call</span>
+                                <span class="font-mono font-bold">${sanitizeHtml(o.customerPhone)}</span>
+                                <a href="${waLink}" target="_blank" class="text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-md hover:bg-emerald-100 flex items-center gap-1">
+                                    <span>محادثة واتساب</span>
+                                    <span class="material-symbols-outlined text-xs">chat</span>
+                                </a>
+                            </p>
+                        ` : ''}
+                        ${o.deliveryCity || o.deliveryAddress ? `
+                            <p class="text-primary/70 mt-1 flex items-start gap-1">
+                                <span class="material-symbols-outlined text-sm text-accent shrink-0">location_on</span>
+                                <span>${sanitizeHtml(o.deliveryCity || '')} ${o.deliveryAddress ? ' - ' + sanitizeHtml(o.deliveryAddress) : ''}</span>
+                            </p>
+                        ` : ''}
+                    </div>
+
+                    <div class="bg-[#fafaf5] p-3 rounded-xl border border-black/5 flex flex-col justify-between">
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-primary/60">الإجمالي الفرعي:</span>
+                            <span class="font-bold">${Number(o.subtotal || 0).toLocaleString()} د.ع</span>
+                        </div>
+                        <div class="flex justify-between text-xs mb-2">
+                            <span class="text-primary/60">أجور التوصيل:</span>
+                            <span class="font-bold">${Number(o.shippingCost || 0).toLocaleString()} د.ع</span>
+                        </div>
+                        <div class="flex justify-between text-sm font-bold border-t border-black/5 pt-2 text-primary">
+                            <span>المجموع الكلي:</span>
+                            <span class="text-accent font-sans text-base">${Number(o.total || 0).toLocaleString()} د.ع</span>
+                        </div>
+                        <div class="mt-3 pt-2 border-t border-black/5 flex items-center justify-between gap-2">
+                            <label class="text-[11px] font-bold text-primary/70 shrink-0">تغيير الحالة:</label>
+                            <select onchange="updateOrderStatusHandler('${o.id || o.orderCode}', this.value)" class="input-field py-1 text-xs bg-white font-bold max-w-[150px]">
+                                <option value="pending" ${o.status === 'pending' ? 'selected' : ''}>قيد الانتظار</option>
+                                <option value="confirmed" ${o.status === 'confirmed' ? 'selected' : ''}>تم التأكيد</option>
+                                <option value="shipped" ${o.status === 'shipped' ? 'selected' : ''}>جاري التوصيل</option>
+                                <option value="delivered" ${o.status === 'delivered' ? 'selected' : ''}>تم التسليم</option>
+                                <option value="cancelled" ${o.status === 'cancelled' ? 'selected' : ''}>ملغي</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-1 pt-2">
+                    <p class="text-[11px] font-bold text-primary/60 mb-1">القطع المطلوبة (${(o.items || []).length}):</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        ${itemsHtml}
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+};
+
+window.updateOrderStatusHandler = async (orderId, newStatus) => {
+    await db.updateOrderStatus(orderId, newStatus);
+    showToast(`تم تحديث حالة الطلب إلى "${newStatus}" بنجاح!`);
+    await renderOrdersSection();
+};
+
+window.deleteOrderHandler = async (orderId) => {
+    if (!confirm('هل أنتِ متأكدة من حذف هذا الطلب؟')) return;
+    await db.deleteOrder(orderId);
+    showToast('تم حذف الطلب بنجاح');
+    await renderOrdersSection();
+};
+
+// Helper to convert base64 dataUrl to File/Blob for client compressor
+function dataUrlToFile(dataUrl, filename = 'compressed.webp') {
+    const arr = dataUrl.split(',');
+    const mime = (arr[0].match(/:(.*?);/) || [])[1] || 'image/jpeg';
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, { type: mime });
+}
+
+window.bulkCompressExistingProductImages = async () => {
+    if (!confirm('سيتم الآن فحص صور المنتجات المعروضة، وضغط أي صورة يتجاوز حجمها 100 كيلوبايت بالبايتات لزيادة سرعة الموقع وتوفير البيانات السحابية. هل ترغبين بالمتابعة؟')) return;
+
+    showToast('جاري بدء الفحص والضغط الذكي للصور...');
+    let compressedCount = 0;
+    let savedTotalBytes = 0;
+
+    for (const p of products) {
+        let changed = false;
+        // Check main image
+        if (p.image && typeof p.image === 'string' && p.image.startsWith('data:image/') && p.image.length > 100000) {
+            try {
+                const file = dataUrlToFile(p.image, `prod_${p.id}.webp`);
+                const stats = await compressImageFileWithStats(file, 'ultra');
+                if (stats.compressedBytes < stats.originalBytes) {
+                    p.image = stats.dataUrl;
+                    savedTotalBytes += (stats.originalBytes - stats.compressedBytes);
+                    changed = true;
+                }
+            } catch (_) {}
+        }
+
+        // Check extra images
+        if (Array.isArray(p.images) && p.images.length > 0) {
+            const newImgs = [];
+            for (const imgUrl of p.images) {
+                if (typeof imgUrl === 'string' && imgUrl.startsWith('data:image/') && imgUrl.length > 100000) {
+                    try {
+                        const file = dataUrlToFile(imgUrl, `prod_extra_${p.id}.webp`);
+                        const stats = await compressImageFileWithStats(file, 'ultra');
+                        if (stats.compressedBytes < stats.originalBytes) {
+                            newImgs.push(stats.dataUrl);
+                            savedTotalBytes += (stats.originalBytes - stats.compressedBytes);
+                            changed = true;
+                        } else {
+                            newImgs.push(imgUrl);
+                        }
+                    } catch (_) {
+                        newImgs.push(imgUrl);
+                    }
+                } else {
+                    newImgs.push(imgUrl);
+                }
+            }
+            p.images = newImgs;
+        }
+
+        // Check colors variant images
+        if (Array.isArray(p.colors) && p.colors.length > 0) {
+            for (const c of p.colors) {
+                if (c && c.img && typeof c.img === 'string' && c.img.startsWith('data:image/') && c.img.length > 100000) {
+                    try {
+                        const file = dataUrlToFile(c.img, `prod_color_${p.id}.webp`);
+                        const stats = await compressImageFileWithStats(file, 'ultra');
+                        if (stats.compressedBytes < stats.originalBytes) {
+                            c.img = stats.dataUrl;
+                            savedTotalBytes += (stats.originalBytes - stats.compressedBytes);
+                            changed = true;
+                        }
+                    } catch (_) {}
+                }
+            }
+        }
+
+        if (changed) {
+            await db.saveProduct(p);
+            compressedCount++;
+            showToast(`⚡ تم ضغط منتج: ${p.nameAr || p.id} (توفير ${formatBytes(savedTotalBytes)})`);
+        }
+    }
+
+    if (compressedCount > 0) {
+        showToast(`✅ تم بنجاح ضغط وتحديث ${compressedCount} منتج، وتوفير ${formatBytes(savedTotalBytes)} من البيانات السحابية!`);
+        await renderProductsSection();
+    } else {
+        showToast('جميع صور المنتجات محسنة ومضغوطة بالفعل ولا تتطلب ضغطاً إضافياً! ✨');
+    }
+};
+
 // --- Init & Refresh Dashboard ---
 window.refreshDashboardData = async () => {
     showToast("جاري تحديث ومزامنة البيانات من قاعدة البيانات...");
-    [stores, products, gameConfig, stories, platformSettings] = await Promise.all([
+    [stores, products, gameConfig, stories, platformSettings, orders] = await Promise.all([
         db.getStores(),
         db.getProducts(),
         db.getGameConfig(),
-        db.getStories(),
-        db.getPlatformSettings()
+        db.getStories(true),
+        db.getPlatformSettings(),
+        db.getOrders()
     ]);
     showSection(currentSection || 'stores');
     showToast("تمت مزامنة أحدث البيانات بنجاح! ✅");
 };
 
 async function init() {
-    [stores, products, gameConfig, stories, platformSettings] = await Promise.all([
+    [stores, products, gameConfig, stories, platformSettings, orders] = await Promise.all([
         db.getStores(),
         db.getProducts(),
         db.getGameConfig(),
-        db.getStories(),
-        db.getPlatformSettings()
+        db.getStories(true),
+        db.getPlatformSettings(),
+        db.getOrders()
     ]);
     showSection('stores');
 }

@@ -132,6 +132,10 @@
             <span class="material-symbols-outlined">apparel</span>
             <span>المنتجات والمقاسات</span>
         </button>
+        <button class="nav-btn" id="nav-orders" onclick="showSection('orders')">
+            <span class="material-symbols-outlined text-accent">shopping_bag</span>
+            <span>إدارة الطلبات الواردة</span>
+        </button>
         <button class="nav-btn" id="nav-game" onclick="showSection('game')">
             <span class="material-symbols-outlined">casino</span>
             <span>لعبة اليوم (آلة الحظ)</span>
@@ -336,11 +340,14 @@
                     <h2 class="serif text-3xl font-bold text-primary">المنتجات المعروضة</h2>
                     <p class="text-xs opacity-60 mt-1">إضافة المنتجات مع ربط كل منتج بالمتجر التابع له والأسعار والمقاسات.</p>
                 </div>
-                <div class="flex items-center gap-3 w-full sm:w-auto">
-                    <select id="product-store-filter" onchange="renderProductsSection()" class="input-field max-w-xs font-bold text-primary bg-white">
+                <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                    <select id="product-store-filter" onchange="renderProductsSection()" class="input-field max-w-[150px] font-bold text-primary bg-white text-xs">
                         <!-- Populated dynamically with 'All' + Stores -->
                     </select>
-                    <button class="btn-gold px-5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md shrink-0" onclick="openProductModal()">
+                    <button class="btn-outline px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-sm shrink-0 border-accent/40 text-primary hover:bg-accent/10" onclick="bulkCompressExistingProductImages()" title="فحص كافة المنتجات القديمة وضغط صورها بالبايتات لزيادة سرعة الموقع">
+                        <span class="material-symbols-outlined text-sm text-accent">bolt</span> ضغط صور المنتجات
+                    </button>
+                    <button class="btn-gold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md shrink-0" onclick="openProductModal()">
                         <span class="material-symbols-outlined text-sm">add</span> إضافة منتج
                     </button>
                 </div>
@@ -348,6 +355,33 @@
 
             <div id="products-admin-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                 <!-- Products list -->
+            </div>
+        </div>
+
+        <!-- ===================== 3.5 SECTION: ORDERS (إدارة الطلبات الواردة) ===================== -->
+        <div class="section" id="section-orders">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                <div>
+                    <h2 class="serif text-3xl font-bold text-primary">الطلبات الواردة</h2>
+                    <p class="text-xs opacity-60 mt-1">متابعة كافة طلبات الزبونات الواردة من المتاجر، المحافظات، وتحديث حالة الطلب.</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                    <select id="order-store-filter" onchange="renderOrdersSection()" class="input-field max-w-[160px] font-bold text-primary bg-white text-xs">
+                        <option value="all">كل المتاجر</option>
+                    </select>
+                    <select id="order-status-filter" onchange="renderOrdersSection()" class="input-field max-w-[160px] font-bold text-primary bg-white text-xs">
+                        <option value="all">كل الحالات</option>
+                        <option value="pending">قيد الانتظار</option>
+                        <option value="confirmed">تم التأكيد</option>
+                        <option value="shipped">جاري التوصيل</option>
+                        <option value="delivered">تم التسليم</option>
+                        <option value="cancelled">ملغي</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="orders-admin-grid" class="space-y-4">
+                <!-- Orders cards populated by JS -->
             </div>
         </div>
 
